@@ -26,7 +26,7 @@ class NonLinearEstimator:
 
         self.nbins = config.getint("global", "nbins", fallback=8)
         self.display = config.getboolean("global", "display", fallback=True)
-        self.workers = config.getboolean("global", "workers", fallback=4)
+        self.workers = config.getint("global", "workers", fallback=4)
 
         self.Nsurrogates = config.getint("estimate", "Nsurrogates", fallback=99)
 
