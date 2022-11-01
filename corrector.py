@@ -1,8 +1,9 @@
-from support import *
+from support import single_iter
 import os
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 import multiprocessing as mp
+import numpy as np
 
 
 class Corrector:
