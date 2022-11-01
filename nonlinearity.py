@@ -257,7 +257,7 @@ class NonLinearEstimator:
                 plt.plot(corr[neworder], perc01_PLOT[neworder], "lightblue")
                 plt.plot(corr[neworder], perc99_PLOT[neworder], "g")
                 plt.xlabel("correlation")
-                plt.ylabel("mutual information (bits)")
+                plt.ylabel("mutual information (nats)")
                 plt.title(
                     f"Patient {patientN} - {allpairs_cont_mi_data:.3}/{allpairs_mean_cont_mi_multisurr:.3} (^{ratio95:.3}-{ratio95control:.3}_{ratio95_shadow:.3})"
                 )
