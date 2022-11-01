@@ -63,8 +63,8 @@ def run (configFile):
         nsamples = duration
     if duration != nsamples:
         warn(f"Acquisition duration ({duration}) is different from the set number of samples for correction ({nsamples}).")
-
-    trueval, correction = compute_correction(steps, folderName, iters, nsamples, nbins, display=display)
+    corrector = Corrector(steps, folderName, iters, nsamples, nbins, workers, display=display)
+    corrector.compute_correction()
 
     nsamples = duration
     pairNum = int((regions * (regions-1))/2)
@@ -80,7 +80,7 @@ def run (configFile):
     globaltotalMIshadow = np.zeros(sessions)
     globalgaussMIshadow = np.zeros(sessions)
 
-    pool = mp.Pool(8)
+    pool = mp.Pool(workers)
     for patientN in range(sessions):
         if not os.path.isfile(f"{folderName}/patient{patientN:02}_{nbins}.npy"):
             shadow = surrogate(mat[:, :, patientN])
@@ -140,7 +140,7 @@ def run (configFile):
         nonlin99_shadow = statsMI_shadow[:, 0] > perc99_shadow
         ratio99_shadow = np.mean(nonlin99_shadow)
 
-        corr_statsMI = correctI(statsMI, correction, trueval)
+        corr_statsMI = corrector.correctI(statsMI)
 
         mean_cont_mi_multisurr=np.mean(corr_statsMI[:,1:],1)
         std_cont_mi_multisurr=np.std(corr_statsMI[:,1:],1)
@@ -150,7 +150,7 @@ def run (configFile):
         allpairs_cont_mi_data = np.mean(corr_statsMI[:,1])
         allpairs_mean_cont_mi_multisurr = np.mean(corr_statsMI[:,1:])
 
-        # corr_statsMI_univar = correctI(statsMI_univar, correction, trueval)
+        # corr_statsMI_univar = corrector.correctI(statsMI_univar)
         # mean_cont_mi_unisurr=np.mean(corr_statsMI_univar,1)
         # std_cont_mi_unisurr=np.std(corr_statsMI_univar,1)
         # allpairs_mean_cont_mi_unisurr = np.mean(corr_statsMI_univar)
@@ -160,7 +160,7 @@ def run (configFile):
         globaltotalMI[patientN] = allpairs_cont_mi_data
         globalgaussMI[patientN] = allpairs_mean_cont_mi_multisurr
 
-        corr_statsMI_shadow = correctI(statsMI_shadow, correction, trueval)
+        corr_statsMI_shadow = corrector.correctI(statsMI_shadow)
 
         mean_cont_mi_multisurrshadow=np.mean(corr_statsMI_shadow[:,1:],1)
         std_cont_mi_multisurrshadow=np.std(corr_statsMI_shadow[:,1:],1)
