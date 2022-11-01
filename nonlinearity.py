@@ -25,6 +25,7 @@ def read_Config (configFile = None):
 
     nbins = config.getint('global','nbins',fallback=8)
     display = config.getboolean('global','display',fallback=True)
+    workers = config.getboolean('global','workers',fallback=4)
 
     Nsurrogates = config.getint('estimate','Nsurrogates', fallback=99)
 
@@ -42,8 +43,9 @@ def read_Config (configFile = None):
 
     if not os.path.isdir(os.path.join(filePath,folderName)):
         os.mkdir(os.path.join(filePath,folderName))
+    print(f"Using: {os.path.abspath(os.path.join(filePath, fileName))} and {os.path.abspath(os.path.join(filePath,folderName))}")
         
-    return steps, iters, nsamples, nbins, display, Nsurrogates, os.path.join(filePath, fileName), fieldName, os.path.join(filePath,folderName), hc_slice
+    return steps, iters, nsamples, nbins, display, Nsurrogates, os.path.join(filePath, fileName), fieldName, os.path.join(filePath,folderName), hc_slice, workers
 
 # %%
 def load_data (fileName, fieldName, hc_slice):
@@ -54,8 +56,7 @@ def load_data (fileName, fieldName, hc_slice):
 
 # %%
 def run (configFile):
-    steps, iters, nsamples, nbins, display, Nsurrogates, fileName, fieldName, folderName, hc_slice = read_Config (configFile)
-    print(f"Using: {os.path.abspath(fileName)} and {os.path.abspath(folderName)}")
+    steps, iters, nsamples, nbins, display, Nsurrogates, fileName, fieldName, folderName, hc_slice, workers = read_Config (configFile)
 
     duration, regions, sessions, mat = load_data (fileName, fieldName, hc_slice)
     if nsamples == 0:
