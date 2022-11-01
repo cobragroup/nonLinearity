@@ -4,63 +4,87 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 import multiprocessing as mp
 
-def compute_correction(steps, folderName, iters, nsamples, nbins, smoothed=False, display=False):
-    global bins
-    incre = 1/steps
-    correction = np.zeros(steps)
-    trueval = np.zeros(steps)
-    if not os.path.isfile(f"{folderName}/newco_{nbins}.npy"):
-        pool = mp.Pool(24)
-        for i in tqdm(range(steps),"Computing correction"):
-            means = 0, 0
-            corre = [[1, i*incre], [i*incre, 1]]
-            I = pool.map(single_iter, ((means, corre, nsamples, nbins)
-                         for __ in range(iters)))
-            correction[i] = np.average(I)
-            trueval[i] = -0.5*np.log(1-(i*incre)**2)
 
-        if smoothed:
-            tosmo = np.array([correction[0], ]*2 +
-                             correction.tolist()+[correction[-1], ]*2)
-            newco = np.zeros_like(correction)
-            for i in range(len(correction)):
-                newco[i] = np.mean(tosmo[i:i+5])
-            if display:
-                try:
-                    plt.plot(correction[:50])
-                    plt.plot(newco[:50])
-                    plt.show()
-                except:
-                    pass
+class Corrector:
+
+    def __init__ (self, steps, folderName, iters, nsamples, nbins, workers = 4, smoothed=False, display=False):
+        self.steps = steps
+        self.folderName = folderName
+        self.iters = iters
+        self.nsamples = nsamples
+        self.nbins = nbins
+        self.smoothed = smoothed
+        self.display = display
+        self.workers = workers
+        self.newco = None
+        self.trueval = None
+         
+    def compute_correction(self):
+        """Computes the correction lookup table or loads the cached values."""
+        incre = 1/self.steps
+        correction = np.zeros(self.steps)
+        self.trueval = np.zeros(self.steps)
+        if not os.path.isfile(f"{self.folderName}/newco_{self.nbins}.npy"):
+            pool = mp.Pool(self.workers)
+            for i in tqdm(range(self.steps),"Computing correction"):
+                means = 0, 0
+                corre = [[1, i*incre], [i*incre, 1]]
+                I = pool.map(single_iter, ((means, corre, self.nsamples, self.nbins)
+                            for __ in range(self.iters)))
+                correction[i] = np.average(I)
+                self.trueval[i] = -0.5*np.log(1-(i*incre)**2)
+
+            if self.smoothed:
+                tosmo = np.array([correction[0], ]*2 +
+                                correction.tolist()+[correction[-1], ]*2)
+                self.newco = np.zeros_like(correction)
+                for i in range(len(correction)):
+                    self.newco[i] = np.mean(tosmo[i:i+5])
+                if self.display:
+                    try:
+                        plt.plot(correction[:50])
+                        plt.plot(self.newco[:50])
+                        plt.show()
+                    except:
+                        pass
+            else:
+                self.newco = correction
+
+            np.save(f"{self.folderName}/newco_{self.nbins}.npy", self.newco)
+            np.save(f"{self.folderName}/trueval_{self.nbins}.npy", self.trueval)
+            pool.close()
         else:
-            newco = correction
+            self.newco = np.load(f"{self.folderName}/newco_{self.nbins}.npy")
+            correction = self.newco
+            if os.path.isfile(f"{self.folderName}/trueval_{self.nbins}.npy"):
+                self.trueval = np.load(f"{self.folderName}/trueval_{self.nbins}.npy")
+            else:
+                self.trueval = -0.5*np.log(1-(np.arange(self.steps)/self.steps)**2)
+                np.save(f"{self.folderName}/trueval_{self.nbins}.npy", self.trueval)
 
-        np.save(f"{folderName}/newco_{nbins}.npy", newco)
-        np.save(f"{folderName}/trueval_{nbins}.npy", trueval)
-        pool.close()
-    else:
-        newco = np.load(f"{folderName}/newco_{nbins}.npy")
-        correction = newco
-        trueval = np.load(f"{folderName}/trueval_{nbins}.npy")
-        weights = np.zeros_like(trueval)
-        weights[:-1] += 0.5*(trueval[1:]-trueval[:-1])
-        weights[1:] += weights[:-1]
-        deviation = np.sqrt(np.average(
-            np.square(newco[:]-trueval[:]), weights=weights))
-    if display:
+            weights = np.zeros_like(self.trueval)
+            weights[:-1] += 0.5*(self.trueval[1:]-self.trueval[:-1])
+            weights[1:] += weights[:-1]
+            deviation = np.sqrt(np.average(
+                np.square(self.newco[:]-self.trueval[:]), weights=weights))
+
         # this is needed to get an estimate of the size of the bias we are correcting
-        weights = np.zeros_like(trueval)
-        weights[:-1] += 0.5*(trueval[1:]-trueval[:-1])
+        weights = np.zeros_like(self.trueval)
+        weights[:-1] += 0.5*(self.trueval[1:]-self.trueval[:-1])
         weights[1:] += weights[:-1]
         deviation = np.sqrt(np.average(
-            np.square(correction[:]-trueval[:]), weights=weights))
+            np.square(correction[:]-self.trueval[:]), weights=weights))
 
-        plt.title(deviation)
-        plt.plot(trueval, correction)
-        plt.plot(trueval, newco)
-        plt.plot([min(trueval), max(trueval)], [
-                 min(trueval), max(trueval)], ":k")
+        plt.title(f"RMS correction: {deviation:.4}")
+        plt.plot(self.trueval, correction)
+        plt.plot(self.trueval, self.newco)
+        plt.plot([min(self.trueval), max(self.trueval)], [
+                min(self.trueval), max(self.trueval)], ":k")
         plt.xlabel('True MI')
         plt.ylabel('Estimated MI')
-        plt.show()
-    return trueval, newco
+        if not os.path.isfile(f"{self.folderName}/correctionMap_{self.nbins}.pdf"):
+            plt.savefig(f"{self.folderName}/correctionMap_{self.nbins}.pdf")
+        if self.display:
+            plt.show()
+        else:
+            plt.close()
