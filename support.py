@@ -17,10 +17,9 @@ def bin_loc(vec, bins):
 
     return q[loc]
 
-
+#%%
 def single_iter(data):
     means, corre, nsamples, nbins = data
-    localI = 0
     points = np.random.multivariate_normal(means, corre, nsamples).T
 
     return pair_mutual_information(points[0], points[1], nbins)

@@ -2,7 +2,7 @@
 # %%
 import os
 import sys
-from support import pair_mutual_information, surrogate, surrogate, task_producer
+from support import pair_mutual_information, surrogate, task_producer
 from corrector import Corrector
 from warnings import warn
 import scipy.io as sio
@@ -59,7 +59,6 @@ class NonLinearEstimator:
         if self.duration != self.nsamples:
             warn(f"Acquisition duration ({self.duration}) is different from the set number of samples for correction ({self.nsamples}).")
 
-# %%
     def run (self):
         self.load_data ()
         
@@ -87,7 +86,7 @@ class NonLinearEstimator:
         for patientN in range(self.sessions):
             if not os.path.isfile(f"{self.folderName}/patient{patientN:02}_{self.nbins}.npy"):
                 shadow = surrogate(self.mat[:, :, patientN])
-                pair = 0
+
                 statsMI = np.zeros([pairNum, self.Nsurrogates+1])
                 for ns, patient in tqdm(enumerate(task_producer(self.mat[:, :, patientN], self.Nsurrogates)), total=self.Nsurrogates+1, desc=f"Patient {patientN} true"):
                     statsMI[:, ns] = pool.starmap(pair_mutual_information, ((
@@ -146,7 +145,7 @@ class NonLinearEstimator:
             corr_statsMI = self.corrector.correctI(statsMI)
 
             mean_cont_mi_multisurr=np.mean(corr_statsMI[:,1:],1)
-            std_cont_mi_multisurr=np.std(corr_statsMI[:,1:],1)
+            # std_cont_mi_multisurr=np.std(corr_statsMI[:,1:],1)
             perc99_PLOT = np.quantile(corr_statsMI[:, 1:], correctedperc99pointer, 1)
             perc01_PLOT = np.quantile(corr_statsMI[:, 1:], correctedperc01pointer, 1)
 
@@ -165,8 +164,8 @@ class NonLinearEstimator:
 
             corr_statsMI_shadow = self.corrector.correctI(statsMI_shadow)
 
-            mean_cont_mi_multisurrshadow=np.mean(corr_statsMI_shadow[:,1:],1)
-            std_cont_mi_multisurrshadow=np.std(corr_statsMI_shadow[:,1:],1)
+            # mean_cont_mi_multisurrshadow=np.mean(corr_statsMI_shadow[:,1:],1)
+            # std_cont_mi_multisurrshadow=np.std(corr_statsMI_shadow[:,1:],1)
 
             allpairs_cont_mi_datashadow = np.mean(corr_statsMI_shadow[:,1])
             allpairs_mean_cont_mi_multisurrshadow = np.mean(corr_statsMI_shadow[:,1:])
