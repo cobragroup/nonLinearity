@@ -173,24 +173,25 @@ def run (configFile):
         globaltotalMIshadow[patientN] = allpairs_cont_mi_datashadow
         globalgaussMIshadow[patientN] = allpairs_mean_cont_mi_multisurrshadow
 
-
-        plt.scatter(corr, corr_statsMI[:,1])
-        neworder = np.argsort(corr)
-        expected = -0.5*np.log(1-corr**2)
-        plt.plot(corr[neworder], expected[neworder], 'purple')
-        plt.plot(corr[neworder], mean_cont_mi_multisurr[neworder], 'r')
-        plt.plot(corr[neworder], perc01_PLOT[neworder], 'lightblue')
-        plt.plot(corr[neworder], perc99_PLOT[neworder], 'g')
-        plt.xlabel('correlation')
-        plt.ylabel('mutual information (bits)')
-        plt.title(
-            f"Patient {patientN} - {allpairs_cont_mi_data:.3}/{allpairs_mean_cont_mi_multisurr:.3} (^{ratio95:.3}-{ratio95control:.3}_{ratio95_shadow:.3})")
-        plt.ylim(bottom=0)
-        plt.savefig(f"{folderName}/patient{patientN:02}_{nbins}.pdf")
-        if display:
-            plt.show()
-        else:
-            plt.close()
+        if not os.path.isfile(f"{folderName}/patient{patientN:02}_{nbins}.pdf") or display:
+            plt.scatter(corr, corr_statsMI[:,1])
+            neworder = np.argsort(corr)
+            expected = -0.5*np.log(1-corr**2)
+            plt.plot(corr[neworder], expected[neworder], 'purple')
+            plt.plot(corr[neworder], mean_cont_mi_multisurr[neworder], 'r')
+            plt.plot(corr[neworder], perc01_PLOT[neworder], 'lightblue')
+            plt.plot(corr[neworder], perc99_PLOT[neworder], 'g')
+            plt.xlabel('correlation')
+            plt.ylabel('mutual information (bits)')
+            plt.title(
+                f"Patient {patientN} - {allpairs_cont_mi_data:.3}/{allpairs_mean_cont_mi_multisurr:.3} (^{ratio95:.3}-{ratio95control:.3}_{ratio95_shadow:.3})")
+            plt.ylim(bottom=0)
+            if not os.path.isfile(f"{folderName}/patient{patientN:02}_{nbins}.pdf"):
+                plt.savefig(f"{folderName}/patient{patientN:02}_{nbins}.pdf")
+            if display:
+                plt.show()
+            else:
+                plt.close()
     pool.close()
     globalStats={"globalratio95control":globalratio95control.tolist(), "globalratio99control":globalratio99control.tolist(), "globalratio95":globalratio95.tolist(), "globalratio99":globalratio99.tolist(), "globaltotalMI":globaltotalMI.tolist(), "globalgaussMI":globalgaussMI.tolist(), "globalratio95shadow":globalratio95shadow.tolist(), "globalratio99shadow":globalratio99shadow.tolist(), "globaltotalMIshadow":globaltotalMIshadow.tolist(), "globalgaussMIshadow":globalgaussMIshadow.tolist()}
     with open(f"{folderName}/globalStats",'w') as fp:
