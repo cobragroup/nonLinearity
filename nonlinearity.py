@@ -2,7 +2,7 @@
 # %%
 import os
 import sys
-from support import pair_mutual_information, surrogate, surrogate
+from support import pair_mutual_information, surrogate, surrogate, task_producer
 from corrector import Corrector
 from warnings import warn
 import scipy.io as sio
