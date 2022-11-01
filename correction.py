@@ -18,6 +18,7 @@ class Corrector:
         self.workers = workers
         self.newco = None
         self.trueval = None
+        self.correctI = np.vectorize(self._correctI)
          
     def compute_correction(self):
         """Computes the correction lookup table or loads the cached values."""
@@ -88,3 +89,9 @@ class Corrector:
             plt.show()
         else:
             plt.close()
+
+    def _correctI(self, I):
+        ind = np.argmin(np.abs(I-self.correction))
+        return self.trueval[ind]
+
+    

@@ -45,13 +45,6 @@ def pair_mutual_information(x, y, binNo):
     return hx + hy - hxy
 
 
-def _correctI(I, correction, trueval):
-    ind = np.argmin(np.abs(I-correction))
-    return trueval[ind]
-
-correctI = np.vectorize(_correctI, excluded={1, 2, "correction", "trueval"})
-
-
 def surrogate(x, multivariate = True):
     """Generate a common angle surrogate of a 2D array (surrogates the first axis)."""
     if multivariate:
