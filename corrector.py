@@ -122,5 +122,5 @@ class Corrector:
             plt.close()
 
     def _correctI(self, I):
-        ind = np.argmin(np.abs(I - self.correction))
+        ind = np.argmin(np.abs(I - self.newco))
         return self.trueval[ind]
