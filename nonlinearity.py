@@ -85,17 +85,8 @@ class NonLinearEstimator:
 
     def estimate(self):
         pairNum = int((self.regions * (self.regions - 1)) / 2)
-
-        globalratio95control = np.zeros(self.sessions)
-        globalratio99control = np.zeros(self.sessions)
-        globalratio95 = np.zeros(self.sessions)
-        globalratio99 = np.zeros(self.sessions)
-        globaltotalMI = np.zeros(self.sessions)
-        globalgaussMI = np.zeros(self.sessions)
-        globalratio95shadow = np.zeros(self.sessions)
-        globalratio99shadow = np.zeros(self.sessions)
-        globaltotalMIshadow = np.zeros(self.sessions)
-        globalgaussMIshadow = np.zeros(self.sessions)
+        statsNames = ["globalratio95control", "globalratio99control", "globalratio95", "globalratio99", "globaltotalMI", "globalgaussMI", "globalratio95shadow", "globalratio99shadow", "globaltotalMIshadow", "globalgaussMIshadow"]
+        globalStats = {name : np.zeros(self.sessions) for name in statsNames}
 
         pool = mp.Pool(self.workers)
         for patientN in range(self.sessions):
@@ -196,8 +187,8 @@ class NonLinearEstimator:
             )
             ratio95control = np.mean(pvalue_NMI < 0.0500001)
             ratio99control = np.mean(pvalue_NMI < 0.0100001)
-            globalratio95control[patientN] = ratio95control
-            globalratio99control[patientN] = ratio99control
+            globalStats["globalratio95control"][patientN] = ratio95control
+            globalStats["globalratio99control"][patientN] = ratio99control
 
             perc95_shadow = np.quantile(
                 statsMI_shadow[:, 1:], correctedperc95pointer, 1
@@ -225,10 +216,10 @@ class NonLinearEstimator:
             # std_cont_mi_unisurr=np.std(corr_statsMI_univar,1)
             # allpairs_mean_cont_mi_unisurr = np.mean(corr_statsMI_univar)
 
-            globalratio95[patientN] = ratio95
-            globalratio99[patientN] = ratio99
-            globaltotalMI[patientN] = allpairs_cont_mi_data
-            globalgaussMI[patientN] = allpairs_mean_cont_mi_multisurr
+            globalStats["globalratio95"][patientN] = ratio95
+            globalStats["globalratio99"][patientN] = ratio99
+            globalStats["globaltotalMI"][patientN] = allpairs_cont_mi_data
+            globalStats["globalgaussMI"][patientN] = allpairs_mean_cont_mi_multisurr
 
             corr_statsMI_shadow = self.corrector.correctI(statsMI_shadow)
 
@@ -238,10 +229,10 @@ class NonLinearEstimator:
             allpairs_cont_mi_datashadow = np.mean(corr_statsMI_shadow[:, 1])
             allpairs_mean_cont_mi_multisurrshadow = np.mean(corr_statsMI_shadow[:, 1:])
 
-            globalratio95shadow[patientN] = ratio95_shadow
-            globalratio99shadow[patientN] = ratio99_shadow
-            globaltotalMIshadow[patientN] = allpairs_cont_mi_datashadow
-            globalgaussMIshadow[patientN] = allpairs_mean_cont_mi_multisurrshadow
+            globalStats["globalratio95shadow"][patientN] = ratio95_shadow
+            globalStats["globalratio99shadow"][patientN] = ratio99_shadow
+            globalStats["globaltotalMIshadow"][patientN] = allpairs_cont_mi_datashadow
+            globalStats["globalgaussMIshadow"][patientN] = allpairs_mean_cont_mi_multisurrshadow
 
             if (
                 not os.path.isfile(
@@ -273,18 +264,8 @@ class NonLinearEstimator:
                 else:
                     plt.close()
         pool.close()
-        globalStats = {
-            "globalratio95control": globalratio95control.tolist(),
-            "globalratio99control": globalratio99control.tolist(),
-            "globalratio95": globalratio95.tolist(),
-            "globalratio99": globalratio99.tolist(),
-            "globaltotalMI": globaltotalMI.tolist(),
-            "globalgaussMI": globalgaussMI.tolist(),
-            "globalratio95shadow": globalratio95shadow.tolist(),
-            "globalratio99shadow": globalratio99shadow.tolist(),
-            "globaltotalMIshadow": globaltotalMIshadow.tolist(),
-            "globalgaussMIshadow": globalgaussMIshadow.tolist(),
-        }
+        globalStats = {k:v.tolist() for k,v in globalStats.items()}
+        
         with open(f"{self.folderName}/globalStats.json", "w") as fp:
             json.dump(globalStats, fp)
 
