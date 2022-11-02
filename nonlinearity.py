@@ -285,7 +285,7 @@ class NonLinearEstimator:
             "globaltotalMIshadow": globaltotalMIshadow.tolist(),
             "globalgaussMIshadow": globalgaussMIshadow.tolist(),
         }
-        with open(f"{self.folderName}/globalStats", "w") as fp:
+        with open(f"{self.folderName}/globalStats.json", "w") as fp:
             json.dump(globalStats, fp)
 
 
