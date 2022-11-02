@@ -89,7 +89,7 @@ class NonLinearEstimator:
         globalStats = {name : np.zeros(self.sessions) for name in statsNames}
 
         pool = mp.Pool(self.workers)
-        for patientN in range(self.sessions):
+        for patientN in tqdm(range(self.sessions), desc=f"Patient:", leave=True):
             if not os.path.isfile(
                 f"{self.folderName}/patient{patientN:02}_{self.nbins}.npy"
             ):
@@ -101,7 +101,7 @@ class NonLinearEstimator:
                         task_producer(self.mat[:, :, patientN], self.Nsurrogates)
                     ),
                     total=self.Nsurrogates + 1,
-                    desc=f"Patient {patientN} true",
+                    desc=f"Patient {patientN} true", leave=False
                 ):
                     statsMI[:, ns] = pool.starmap(
                         pair_mutual_information,
@@ -116,7 +116,7 @@ class NonLinearEstimator:
                 for ns, patient in tqdm(
                     enumerate(task_producer(shadow[:, :], self.Nsurrogates)),
                     total=self.Nsurrogates + 1,
-                    desc=f"Patient {patientN} shadow",
+                    desc=f"Patient {patientN} shadow", leave=False
                 ):
                     statsMI_shadow[:, ns] = pool.starmap(
                         pair_mutual_information,
@@ -128,7 +128,7 @@ class NonLinearEstimator:
                     )
 
                 # statsMI_univar = np.zeros([pairNum, self.Nsurrogates])
-                # for ns, patient in tqdm(enumerate(task_producer(self.mat[:, :, patientN], self.Nsurrogates, False)), total=self.Nsurrogates+1, desc=f"Patient {patientN} univar"):
+                # for ns, patient in tqdm(enumerate(task_producer(self.mat[:, :, patientN], self.Nsurrogates, False)), total=self.Nsurrogates+1, desc=f"Patient {patientN} univar", leave=False):
                 #     statsMI_univar[:, ns] = pool.starmap(pair_mutual_information, ((
                 #         patient[:, zone1], patient[:, zone2]) for zone1 in range(self.regions) for zone2 in range(zone1+1, self.regions)))
 
