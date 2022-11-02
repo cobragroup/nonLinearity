@@ -85,7 +85,7 @@ class NonLinearEstimator:
 
     def estimate(self):
         pairNum = int((self.regions * (self.regions - 1)) / 2)
-        statsNames = ["globalratio95control", "globalratio99control", "globalratio95", "globalratio99", "globaltotalMI", "globalgaussMI", "globalratio95shadow", "globalratio99shadow", "globaltotalMIshadow", "globalgaussMIshadow"]
+        statsNames = ["globalratio95control", "globalratio99control", "globalratio05", "globalratio95", "globalratio99", "globaltotalMI", "globalgaussMI", "globalratio05shadow", "globalratio95shadow", "globalratio99shadow", "globaltotalMIshadow", "globalgaussMIshadow"]
         globalStats = {name : np.zeros(self.sessions) for name in statsNames}
 
         pool = mp.Pool(self.workers)
@@ -170,6 +170,9 @@ class NonLinearEstimator:
             correctedperc99pointer = (self.Nsurrogates * (0.99) - 0.5) / (
                 self.Nsurrogates - 1
             )
+            correctedperc05pointer = (self.Nsurrogates * (0.05) - 0.5) / (
+                self.Nsurrogates - 1
+            )
             correctedperc01pointer = (self.Nsurrogates * (0.01) - 0.5) / (
                 self.Nsurrogates - 1
             )
@@ -180,6 +183,9 @@ class NonLinearEstimator:
             perc99 = np.quantile(statsMI[:, 1:], correctedperc99pointer, 1)
             nonlin99 = statsMI[:, 0] > perc99
             ratio99 = np.mean(nonlin99)
+            perc05 = np.quantile(statsMI[:, 1:], correctedperc05pointer, 1)
+            nonlin05 = statsMI[:, 0] < perc05
+            ratio05 = np.mean(nonlin05)
 
             # pvalue_MI = 1 - np.sum(statsMI_univar < statsMI[:, 0], 1)/(self.Nsurrogates+1)
             pvalue_NMI = 1 - np.sum(statsMI[:, 1:].T < statsMI[:, 0], 0) / (
@@ -200,6 +206,11 @@ class NonLinearEstimator:
             )
             nonlin99_shadow = statsMI_shadow[:, 0] > perc99_shadow
             ratio99_shadow = np.mean(nonlin99_shadow)
+            perc05_shadow = np.quantile(
+                statsMI_shadow[:, 1:], correctedperc05pointer, 1
+            )
+            nonlin05_shadow = statsMI_shadow[:, 0] < perc05_shadow
+            ratio05_shadow = np.mean(nonlin05_shadow)
 
             corr_statsMI = self.corrector.correctI(statsMI)
 
@@ -216,6 +227,7 @@ class NonLinearEstimator:
             # std_cont_mi_unisurr=np.std(corr_statsMI_univar,1)
             # allpairs_mean_cont_mi_unisurr = np.mean(corr_statsMI_univar)
 
+            globalStats["globalratio05"][patientN] = ratio05
             globalStats["globalratio95"][patientN] = ratio95
             globalStats["globalratio99"][patientN] = ratio99
             globalStats["globaltotalMI"][patientN] = allpairs_cont_mi_data
@@ -229,6 +241,7 @@ class NonLinearEstimator:
             allpairs_cont_mi_datashadow = np.mean(corr_statsMI_shadow[:, 1])
             allpairs_mean_cont_mi_multisurrshadow = np.mean(corr_statsMI_shadow[:, 1:])
 
+            globalStats["globalratio05shadow"][patientN] = ratio05_shadow
             globalStats["globalratio95shadow"][patientN] = ratio95_shadow
             globalStats["globalratio99shadow"][patientN] = ratio99_shadow
             globalStats["globaltotalMIshadow"][patientN] = allpairs_cont_mi_datashadow
