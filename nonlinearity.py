@@ -51,19 +51,18 @@ class NonLinearEstimator:
         )
 
     def load_data(self):
-        self.mat = sio.loadmat(self.fileName)[self.fieldName][:, :, self.hc_slice]
-        self.duration, self.regions, self.sessions = self.mat.shape
+        duration, self.regions, self.sessions = self.mat.shape
 
         print(
             "Loaded data matrix: {} samples by {} regions by {} sessions".format(
-                self.duration, self.regions, self.sessions
+                duration, self.regions, self.sessions
             )
         )
         if self.nsamples == 0:
-            self.nsamples = self.duration
-        if self.duration != self.nsamples:
+            self.nsamples = duration
+        if duration != self.nsamples:
             warn(
-                f"Acquisition duration ({self.duration}) is different from the set number of samples for correction ({self.nsamples})."
+                f"Acquisition duration ({duration}) is different from the set number of samples for correction ({self.nsamples})."
             )
 
     def run(self):
@@ -80,7 +79,6 @@ class NonLinearEstimator:
         )
         self.corrector.compute_correction()
 
-        self.nsamples = self.duration
         self.estimate()
 
     def estimate(self):
