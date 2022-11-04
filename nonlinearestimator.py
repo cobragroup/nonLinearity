@@ -1,24 +1,28 @@
-#!/usr/bin/env python3
 # %%
-import os
-import sys
-from support import pair_mutual_information, surrogate, task_producer
-from corrector import Corrector
-from warnings import warn
-import scipy.io as sio
-import json
-import configparser
-import multiprocessing as mp
-from tqdm import tqdm
-import matplotlib.pyplot as plt
 import numpy as np
+import matplotlib.pyplot as plt
+from tqdm import tqdm
+import multiprocessing as mp
+import configparser
+import json
+import scipy.io as sio
+from warnings import warn
+import sys
+import os
+path = os.path.dirname(os.path.realpath(__file__))
+sys.path.append(path)
+from corrector import Corrector
+from support import pair_mutual_information, surrogate, task_producer
 
 
 # %%
 class NonLinearEstimator:
-    def __init__(self, configFile=None):
+    def __init__(self, configFile=None, dataset=None):
         config = configparser.ConfigParser()
-        config.read(configFile if configFile is not None else "options.ini")
+        configfile = configFile if configFile is not None else os.path.join(
+            path, "config.ini")
+        assert os.path.isfile(configfile)
+        config.read(configfile)
 
         self.steps = config.getint("correction", "steps", fallback=200)
         self.iters = config.getint("correction", "iters", fallback=1000)
@@ -28,24 +32,29 @@ class NonLinearEstimator:
         self.display = config.getboolean("global", "display", fallback=True)
         self.workers = config.getint("global", "workers", fallback=4)
 
-        self.Nsurrogates = config.getint("estimate", "Nsurrogates", fallback=99)
-        dataset = config.get("global", "dataset", fallback=None)
+        self.Nsurrogates = config.getint(
+            "estimate", "Nsurrogates", fallback=99)
+        if dataset is None:
+            dataset = config.get("global", "dataset", fallback=None)
         assert dataset is not None, "Unspecified dataset in .ini file."
-        assert config.has_section(dataset), "The details for the specified dataset are missing in .ini file."
+        assert config.has_section(
+            dataset), "The details for the specified dataset are missing in .ini file."
         filePath = config.get(dataset, "filePath", fallback="./")
         fileName = config.get(dataset, "fileName", fallback=None)
         self.fieldName = config.get(dataset, "fieldName", fallback=None)
         assert fileName is not None, "Missing dataset filename in .ini file."
         if self.fieldName is None:
             warn("Missing dataset fieldname in .ini file. Trying with euristics.")
-        hc_start = config.getint(dataset, "healthy_control_start", fallback=None)
+        hc_start = config.getint(
+            dataset, "healthy_control_start", fallback=None)
         hc_start = hc_start if hc_start else None
         hc_end = config.getint(dataset, "healthy_control_end", fallback=None)
         hc_end = hc_end if hc_end else None
         self.hc_slice = slice(hc_start, hc_end)
 
         self.fileName = os.path.join(filePath, fileName)
-        assert os.path.isfile(self.fileName), f"Missing dataset at specified path: {self.fileName}."
+        assert os.path.isfile(
+            self.fileName), f"Missing dataset at specified path: {self.fileName}."
         folderName = os.path.splitext(fileName)[0] + f"_bin{self.nbins}"
         self.folderName = os.path.join(filePath, folderName)
         if not os.path.isdir(self.folderName):
@@ -57,7 +66,8 @@ class NonLinearEstimator:
     def load_data(self):
         tmp_mat = sio.loadmat(self.fileName)
         if self.fieldName is None:
-            self.fieldName = [k for k in tmp_mat.keys() if k not in ['__header__', '__version__', '__globals__']][0]
+            self.fieldName = [k for k in tmp_mat.keys() if k not in [
+                '__header__', '__version__', '__globals__']][0]
 
         self.mat = tmp_mat[self.fieldName][:, :, self.hc_slice]
         duration, self.regions, self.sessions = self.mat.shape
@@ -76,7 +86,7 @@ class NonLinearEstimator:
 
     def run(self):
         self.load_data()
-
+        assert False
         self.corrector = Corrector(
             self.steps,
             self.folderName,
@@ -92,8 +102,9 @@ class NonLinearEstimator:
 
     def estimate(self):
         pairNum = int((self.regions * (self.regions - 1)) / 2)
-        statsNames = ["globalratio95control", "globalratio99control", "globalratio05", "globalratio95", "globalratio99", "globaltotalMI", "globalgaussMI", "globalratio05shadow", "globalratio95shadow", "globalratio99shadow", "globaltotalMIshadow", "globalgaussMIshadow"]
-        globalStats = {name : np.zeros(self.sessions) for name in statsNames}
+        statsNames = ["globalratio95control", "globalratio99control", "globalratio05", "globalratio95", "globalratio99", "globaltotalMI",
+                      "globalgaussMI", "globalratio05shadow", "globalratio95shadow", "globalratio99shadow", "globaltotalMIshadow", "globalgaussMIshadow"]
+        globalStats = {name: np.zeros(self.sessions) for name in statsNames}
 
         pool = mp.Pool(self.workers)
         for patientN in tqdm(range(self.sessions), desc=f"Patient:", leave=True):
@@ -105,7 +116,8 @@ class NonLinearEstimator:
                 statsMI = np.zeros([pairNum, self.Nsurrogates + 1])
                 for ns, patient in tqdm(
                     enumerate(
-                        task_producer(self.mat[:, :, patientN], self.Nsurrogates)
+                        task_producer(
+                            self.mat[:, :, patientN], self.Nsurrogates)
                     ),
                     total=self.Nsurrogates + 1,
                     desc=f"Patient {patientN} true", leave=False
@@ -142,14 +154,16 @@ class NonLinearEstimator:
                 corr = np.array(
                     [
                         np.corrcoef(
-                            self.mat[:, zone1, patientN], self.mat[:, zone2, patientN]
+                            self.mat[:, zone1, patientN], self.mat[:,
+                                                                   zone2, patientN]
                         )[1, 0]
                         for zone1 in range(self.regions)
                         for zone2 in range(zone1 + 1, self.regions)
                     ]
                 )
 
-                np.save(f"{self.folderName}/patient{patientN:02}_{self.nbins}", statsMI)
+                np.save(
+                    f"{self.folderName}/patient{patientN:02}_{self.nbins}", statsMI)
                 np.save(
                     f"{self.folderName}/patient{patientN:02}_{self.nbins}_sha",
                     statsMI_shadow,
@@ -223,8 +237,10 @@ class NonLinearEstimator:
 
             mean_cont_mi_multisurr = np.mean(corr_statsMI[:, 1:], 1)
             # std_cont_mi_multisurr=np.std(corr_statsMI[:,1:],1)
-            perc99_PLOT = np.quantile(corr_statsMI[:, 1:], correctedperc99pointer, 1)
-            perc01_PLOT = np.quantile(corr_statsMI[:, 1:], correctedperc01pointer, 1)
+            perc99_PLOT = np.quantile(
+                corr_statsMI[:, 1:], correctedperc99pointer, 1)
+            perc01_PLOT = np.quantile(
+                corr_statsMI[:, 1:], correctedperc01pointer, 1)
 
             allpairs_cont_mi_data = np.mean(corr_statsMI[:, 1])
             allpairs_mean_cont_mi_multisurr = np.mean(corr_statsMI[:, 1:])
@@ -246,7 +262,8 @@ class NonLinearEstimator:
             # std_cont_mi_multisurrshadow=np.std(corr_statsMI_shadow[:,1:],1)
 
             allpairs_cont_mi_datashadow = np.mean(corr_statsMI_shadow[:, 1])
-            allpairs_mean_cont_mi_multisurrshadow = np.mean(corr_statsMI_shadow[:, 1:])
+            allpairs_mean_cont_mi_multisurrshadow = np.mean(
+                corr_statsMI_shadow[:, 1:])
 
             globalStats["globalratio05shadow"][patientN] = ratio05_shadow
             globalStats["globalratio95shadow"][patientN] = ratio95_shadow
@@ -284,17 +301,7 @@ class NonLinearEstimator:
                 else:
                     plt.close()
         pool.close()
-        globalStats = {k:v.tolist() for k,v in globalStats.items()}
-        
+        globalStats = {k: v.tolist() for k, v in globalStats.items()}
+
         with open(f"{self.folderName}/globalStats.json", "w") as fp:
             json.dump(globalStats, fp)
-
-
-if __name__ == "__main__":
-    if len(sys.argv) > 1:
-        config = sys.argv[1]
-    else:
-        config = None
-
-    estimator = NonLinearEstimator(config)
-    estimator.run()
