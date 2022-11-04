@@ -10,7 +10,7 @@ parser.add_argument('-c', type=str, metavar='config', dest="configFile",
                         help="Path to an alternate config file.")
 parser.add_argument('-d', type=str, metavar='dataset', dest="dataset",
                         help="Name of the dataset to be processed, overrides the corresponding option in the config file.")
-parser.add_argument('-b', type=str, metavar='num of bins', dest="bins",
+parser.add_argument('-b', type=int, metavar='num of bins', dest="bins",
                         help="Number of bins for estimation, overrides the corresponding option in the config file.")
 
 

@@ -89,7 +89,7 @@ class NonLinearEstimator:
 
     def run(self):
         self.load_data()
-        assert False
+
         self.corrector = Corrector(
             self.steps,
             self.folderName,
