@@ -29,28 +29,37 @@ class NonLinearEstimator:
         self.workers = config.getint("global", "workers", fallback=4)
 
         self.Nsurrogates = config.getint("estimate", "Nsurrogates", fallback=99)
-
-        filePath = config.get("dataset", "filePath", fallback="./")
-        fileName = config.get("dataset", "fileName", fallback=None)
-        self.fieldName = config.get("dataset", "fieldName", fallback=None)
+        dataset = config.get("global", "dataset", fallback=None)
+        assert dataset is not None, "Unspecified dataset in .ini file."
+        assert config.has_section(dataset), "The details for the specified dataset are missing in .ini file."
+        filePath = config.get(dataset, "filePath", fallback="./")
+        fileName = config.get(dataset, "fileName", fallback=None)
+        self.fieldName = config.get(dataset, "fieldName", fallback=None)
         assert fileName is not None, "Missing dataset filename in .ini file."
-        assert self.fieldName is not None, "Missing dataset fieldname in .ini file."
-        folderName = os.path.splitext(fileName)[0] + f"_bin{self.nbins}"
-        hc_start = config.getint("dataset", "healthy_control_start", fallback=None)
+        if self.fieldName is None:
+            warn("Missing dataset fieldname in .ini file. Trying with euristics.")
+        hc_start = config.getint(dataset, "healthy_control_start", fallback=None)
         hc_start = hc_start if hc_start else None
-        hc_end = config.getint("dataset", "healthy_control_end", fallback=None)
+        hc_end = config.getint(dataset, "healthy_control_end", fallback=None)
         hc_end = hc_end if hc_end else None
         self.hc_slice = slice(hc_start, hc_end)
 
-        if not os.path.isdir(os.path.join(filePath, folderName)):
-            os.mkdir(os.path.join(filePath, folderName))
         self.fileName = os.path.join(filePath, fileName)
+        assert os.path.isfile(self.fileName), f"Missing dataset at specified path: {self.fileName}."
+        folderName = os.path.splitext(fileName)[0] + f"_bin{self.nbins}"
         self.folderName = os.path.join(filePath, folderName)
+        if not os.path.isdir(self.folderName):
+            os.mkdir(self.folderName)
         print(
             f"Using: {os.path.abspath(self.fileName)} and {os.path.abspath(self.folderName)}"
         )
 
     def load_data(self):
+        tmp_mat = sio.loadmat(self.fileName)
+        if self.fieldName is None:
+            self.fieldName = [k for k in tmp_mat.keys() if k not in ['__header__', '__version__', '__globals__']][0]
+
+        self.mat = tmp_mat[self.fieldName][:, :, self.hc_slice]
         duration, self.regions, self.sessions = self.mat.shape
 
         print(
