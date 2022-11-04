@@ -17,7 +17,7 @@ from support import pair_mutual_information, surrogate, task_producer
 
 # %%
 class NonLinearEstimator:
-    def __init__(self, configFile=None, dataset=None):
+    def __init__(self, configFile=None, dataset=None, nbins=None):
         config = configparser.ConfigParser()
         configfile = configFile if configFile is not None else os.path.join(
             path, "config.ini")
@@ -28,7 +28,10 @@ class NonLinearEstimator:
         self.iters = config.getint("correction", "iters", fallback=1000)
         self.nsamples = config.getint("correction", "nsamples", fallback=0)
 
-        self.nbins = config.getint("global", "nbins", fallback=8)
+        if nbins is None:
+            self.nbins = config.getint("global", "nbins", fallback=8)
+        else:
+            self.nbins = nbins
         self.display = config.getboolean("global", "display", fallback=True)
         self.workers = config.getint("global", "workers", fallback=4)
 
