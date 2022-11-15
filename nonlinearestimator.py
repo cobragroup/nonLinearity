@@ -17,13 +17,14 @@ from support import pair_mutual_information, surrogate, task_producer
 
 # %%
 class NonLinearEstimator:
-    def __init__(self, configFile=None, dataset=None, nbins=None):
+    def __init__(self, configFile=None, dataset=None, nbins=None, regions = ""):
         config = configparser.ConfigParser()
         configfile = configFile if configFile is not None else os.path.join(
             path, "config.ini")
         assert os.path.isfile(configfile)
         config.read(configfile)
 
+        config['DEFAULT']['regions'] = regions
         self.steps = config.getint("correction", "steps", fallback=200)
         self.iters = config.getint("correction", "iters", fallback=1000)
         self.nsamples = config.getint("correction", "nsamples", fallback=0)
