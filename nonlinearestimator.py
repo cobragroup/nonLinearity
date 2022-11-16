@@ -111,85 +111,85 @@ class NonLinearEstimator:
         self.estimate()
 
     def _single_patient_numeric(self, patientN, pool):
-            if not os.path.isfile(
-                f"{self.folderName}/patient{patientN:02}_{self.nbins}.npy"
-            ):
+        if not os.path.isfile(
+            f"{self.folderName}/patient{patientN:02}_{self.nbins}.npy"
+        ):
             statsMI = np.zeros([self.pairNum, self.Nsurrogates + 1])
-                for ns, patient in tqdm(
-                    enumerate(
-                        task_producer(
-                            self.mat[:, :, patientN], self.Nsurrogates)
-                    ),
-                    total=self.Nsurrogates + 1,
-                    desc=f"Patient {patientN} true", leave=False
-                ):
-                    statsMI[:, ns] = pool.starmap(
-                        pair_mutual_information,
-                        (
-                            (patient[:, zone1], patient[:, zone2], self.nbins)
-                            for zone1 in range(self.regions)
-                            for zone2 in range(zone1 + 1, self.regions)
-                        ),
-                    )
-                np.save(
-                    f"{self.folderName}/patient{patientN:02}_{self.nbins}", statsMI)
-            else:
-                statsMI = np.load(
-                    f"{self.folderName}/patient{patientN:02}_{self.nbins}.npy"
-                )
-
-            if not os.path.isfile(
-                f"{self.folderName}/patient{patientN:02}_{self.nbins}_sha.npy"
+            for ns, patient in tqdm(
+                enumerate(
+                    task_producer(
+                        self.mat[:, :, patientN], self.Nsurrogates)
+                ),
+                total=self.Nsurrogates + 1,
+                desc=f"Patient {patientN} true", leave=False
             ):
-                shadow = surrogate(self.mat[:, :, patientN])
-            statsMI_shadow = np.zeros([self.pairNum, self.Nsurrogates + 1])
-                for ns, patient in tqdm(
-                    enumerate(task_producer(shadow[:, :], self.Nsurrogates)),
-                    total=self.Nsurrogates + 1,
-                    desc=f"Patient {patientN} shadow", leave=False
-                ):
-                    statsMI_shadow[:, ns] = pool.starmap(
-                        pair_mutual_information,
-                        (
-                            (patient[:, zone1], patient[:, zone2], self.nbins)
-                            for zone1 in range(self.regions)
-                            for zone2 in range(zone1 + 1, self.regions)
-                        ),
-                    )
-
-                # statsMI_univar = np.zeros([pairNum, self.Nsurrogates])
-                # for ns, patient in tqdm(enumerate(task_producer(self.mat[:, :, patientN], self.Nsurrogates, False)), total=self.Nsurrogates+1, desc=f"Patient {patientN} univar", leave=False):
-                #     statsMI_univar[:, ns] = pool.starmap(pair_mutual_information, ((
-                #         patient[:, zone1], patient[:, zone2]) for zone1 in range(self.regions) for zone2 in range(zone1+1, self.regions)))
-
-                corr = np.array(
-                    [
-                        np.corrcoef(
-                            self.mat[:, zone1, patientN], self.mat[:,
-                                                                   zone2, patientN]
-                        )[1, 0]
+                statsMI[:, ns] = pool.starmap(
+                    pair_mutual_information,
+                    (
+                        (patient[:, zone1], patient[:, zone2], self.nbins)
                         for zone1 in range(self.regions)
                         for zone2 in range(zone1 + 1, self.regions)
-                    ]
+                    ),
+                )
+            np.save(
+                f"{self.folderName}/patient{patientN:02}_{self.nbins}", statsMI)
+        else:
+            statsMI = np.load(
+                f"{self.folderName}/patient{patientN:02}_{self.nbins}.npy"
+            )
+
+        if not os.path.isfile(
+            f"{self.folderName}/patient{patientN:02}_{self.nbins}_sha.npy"
+        ):
+            shadow = surrogate(self.mat[:, :, patientN])
+            statsMI_shadow = np.zeros([self.pairNum, self.Nsurrogates + 1])
+            for ns, patient in tqdm(
+                enumerate(task_producer(shadow[:, :], self.Nsurrogates)),
+                total=self.Nsurrogates + 1,
+                desc=f"Patient {patientN} shadow", leave=False
+            ):
+                statsMI_shadow[:, ns] = pool.starmap(
+                    pair_mutual_information,
+                    (
+                        (patient[:, zone1], patient[:, zone2], self.nbins)
+                        for zone1 in range(self.regions)
+                        for zone2 in range(zone1 + 1, self.regions)
+                    ),
                 )
 
-                np.save(
-                    f"{self.folderName}/patient{patientN:02}_{self.nbins}_sha",
-                    statsMI_shadow,
-                )
-                # np.save(f"{self.folderName}/patient{patientN:02}_{self.nbins}_uni", statsMI_univar)
-                np.save(
-                    f"{self.folderName}/patient{patientN:02}_{self.nbins}_cor", corr
-                )
-            else:
-                statsMI_shadow = np.load(
-                    f"{self.folderName}/patient{patientN:02}_{self.nbins}_sha.npy"
-                )
-                # statsMI_univar = np.load(
-                #     f"{self.folderName}/patient{patient:02}_{self.nbins}_uni.npy")
-                corr = np.load(
-                    f"{self.folderName}/patient{patientN:02}_{self.nbins}_cor.npy"
-                )
+            # statsMI_univar = np.zeros([pairNum, self.Nsurrogates])
+            # for ns, patient in tqdm(enumerate(task_producer(self.mat[:, :, patientN], self.Nsurrogates, False)), total=self.Nsurrogates+1, desc=f"Patient {patientN} univar", leave=False):
+            #     statsMI_univar[:, ns] = pool.starmap(pair_mutual_information, ((
+            #         patient[:, zone1], patient[:, zone2]) for zone1 in range(self.regions) for zone2 in range(zone1+1, self.regions)))
+
+            corr = np.array(
+                [
+                    np.corrcoef(
+                        self.mat[:, zone1, patientN], self.mat[:,
+                                                                zone2, patientN]
+                    )[1, 0]
+                    for zone1 in range(self.regions)
+                    for zone2 in range(zone1 + 1, self.regions)
+                ]
+            )
+
+            np.save(
+                f"{self.folderName}/patient{patientN:02}_{self.nbins}_sha",
+                statsMI_shadow,
+            )
+            # np.save(f"{self.folderName}/patient{patientN:02}_{self.nbins}_uni", statsMI_univar)
+            np.save(
+                f"{self.folderName}/patient{patientN:02}_{self.nbins}_cor", corr
+            )
+        else:
+            statsMI_shadow = np.load(
+                f"{self.folderName}/patient{patientN:02}_{self.nbins}_sha.npy"
+            )
+            # statsMI_univar = np.load(
+            #     f"{self.folderName}/patient{patient:02}_{self.nbins}_uni.npy")
+            corr = np.load(
+                f"{self.folderName}/patient{patientN:02}_{self.nbins}_cor.npy"
+            )
 
         return statsMI, statsMI_shadow, corr
 
@@ -211,9 +211,6 @@ class NonLinearEstimator:
                 self.Nsurrogates - 1
             )
             correctedperc05pointer = (self.Nsurrogates * (0.05) - 0.5) / (
-                self.Nsurrogates - 1
-            )
-            correctedperc01pointer = (self.Nsurrogates * (0.01) - 0.5) / (
                 self.Nsurrogates - 1
             )
 
@@ -254,13 +251,6 @@ class NonLinearEstimator:
 
             corr_statsMI = self.corrector.correctI(statsMI)
 
-            mean_cont_mi_multisurr = np.mean(corr_statsMI[:, 1:], 1)
-            # std_cont_mi_multisurr=np.std(corr_statsMI[:,1:],1)
-            perc99_PLOT = np.quantile(
-                corr_statsMI[:, 1:], correctedperc99pointer, 1)
-            perc01_PLOT = np.quantile(
-                corr_statsMI[:, 1:], correctedperc01pointer, 1)
-
             allpairs_cont_mi_data = np.mean(corr_statsMI[:, 1])
             allpairs_mean_cont_mi_multisurr = np.mean(corr_statsMI[:, 1:])
 
@@ -299,31 +289,45 @@ class NonLinearEstimator:
                 )
                 or self.display
             ):
-                plt.scatter(corr, corr_statsMI[:, 1])
-                neworder = np.argsort(corr)
-                expected = -0.5 * np.log(1 - corr**2)
-                plt.plot(corr[neworder], expected[neworder], "purple")
-                plt.plot(corr[neworder], mean_cont_mi_multisurr[neworder], "r")
-                plt.plot(corr[neworder], perc01_PLOT[neworder], "lightblue")
-                plt.plot(corr[neworder], perc99_PLOT[neworder], "g")
-                plt.xlabel("correlation")
-                plt.ylabel("mutual information (nats)")
-                plt.title(
-                    f"Patient {patientN} - {allpairs_cont_mi_data:.3}/{allpairs_mean_cont_mi_multisurr:.3} (^{ratio95:.3}-{ratio95control:.3}_{ratio95_shadow:.3})"
-                )
-                plt.ylim(bottom=0)
-                if not os.path.isfile(
-                    f"{self.folderName}/patient{patientN:02}_{self.nbins}.pdf"
-                ):
-                    plt.savefig(
-                        f"{self.folderName}/patient{patientN:02}_{self.nbins}.pdf"
-                    )
-                if self.display:
-                    plt.show()
-                else:
-                    plt.close()
+                title = f"Patient {patientN} - {allpairs_cont_mi_data:.3}/{allpairs_mean_cont_mi_multisurr:.3} (^{ratio95:.3}-{ratio95control:.3}_{ratio95_shadow:.3})"
+                self._smile_plot(patientN, corr, corr_statsMI, title)
         pool.close()
-        globalStats = {k: v.tolist() for k, v in globalStats.items()}
 
         with open(f"{self.folderName}/globalStats.json", "w") as fp:
             json.dump(globalStats, fp)
+
+    def _smile_plot(self, patientN, corr, corr_statsMI, title):
+        correctedperc01pointer = (self.Nsurrogates * (0.01) - 0.5) / (
+            self.Nsurrogates - 1
+        )
+        correctedperc99pointer = (self.Nsurrogates * (0.99) - 0.5) / (
+            self.Nsurrogates - 1
+        )
+        mean_cont_mi_multisurr = np.mean(corr_statsMI[:, 1:], 1)
+        # std_cont_mi_multisurr=np.std(corr_statsMI[:,1:],1)
+        perc99_PLOT = np.quantile(
+            corr_statsMI[:, 1:], correctedperc99pointer, 1)
+        perc01_PLOT = np.quantile(
+            corr_statsMI[:, 1:], correctedperc01pointer, 1)
+
+        plt.scatter(corr, corr_statsMI[:, 1])
+        neworder = np.argsort(corr)
+        expected = -0.5 * np.log(1 - corr**2)
+        plt.plot(corr[neworder], expected[neworder], "purple")
+        plt.plot(corr[neworder], mean_cont_mi_multisurr[neworder], "r")
+        plt.plot(corr[neworder], perc01_PLOT[neworder], "lightblue")
+        plt.plot(corr[neworder], perc99_PLOT[neworder], "g")
+        plt.xlabel("correlation")
+        plt.ylabel("mutual information (nats)")
+        plt.title(title)
+        plt.ylim(bottom=0)
+        if not os.path.isfile(
+            f"{self.folderName}/patient{patientN:02}_{self.nbins}.pdf"
+        ):
+            plt.savefig(
+                f"{self.folderName}/patient{patientN:02}_{self.nbins}.pdf"
+            )
+        if self.display:
+            plt.show()
+        else:
+            plt.close()
