@@ -17,7 +17,7 @@ from support import pair_mutual_information, surrogate, task_producer
 
 # %%
 class NonLinearEstimator:
-    def __init__(self, configFile=None, dataset=None, nbins=None, regions = ""):
+    def __init__(self, configFile=None, dataset=None, nbins=None, regions=""):
         config = configparser.ConfigParser()
         configfile = configFile if configFile is not None else os.path.join(
             path, "config.ini")
@@ -92,6 +92,7 @@ class NonLinearEstimator:
             warn(
                 f"Acquisition duration ({duration}) is different from the set number of samples for correction ({self.nsamples})."
             )
+        self.pairNum = int((self.regions * (self.regions - 1)) / 2)
 
     def run(self):
         self.load_data()
@@ -109,18 +110,11 @@ class NonLinearEstimator:
 
         self.estimate()
 
-    def estimate(self):
-        pairNum = int((self.regions * (self.regions - 1)) / 2)
-        statsNames = ["globalratio95control", "globalratio99control", "globalratio05", "globalratio95", "globalratio99", "globaltotalMI",
-                      "globalgaussMI", "globalratio05shadow", "globalratio95shadow", "globalratio99shadow", "globaltotalMIshadow", "globalgaussMIshadow"]
-        globalStats = {name: np.zeros(self.sessions) for name in statsNames}
-
-        pool = mp.Pool(self.workers)
-        for patientN in tqdm(range(self.sessions), desc=f"Patient", leave=True):
+    def _single_patient_numeric(self, patientN, pool):
             if not os.path.isfile(
                 f"{self.folderName}/patient{patientN:02}_{self.nbins}.npy"
             ):
-                statsMI = np.zeros([pairNum, self.Nsurrogates + 1])
+            statsMI = np.zeros([self.pairNum, self.Nsurrogates + 1])
                 for ns, patient in tqdm(
                     enumerate(
                         task_producer(
@@ -148,7 +142,7 @@ class NonLinearEstimator:
                 f"{self.folderName}/patient{patientN:02}_{self.nbins}_sha.npy"
             ):
                 shadow = surrogate(self.mat[:, :, patientN])
-                statsMI_shadow = np.zeros([pairNum, self.Nsurrogates + 1])
+            statsMI_shadow = np.zeros([self.pairNum, self.Nsurrogates + 1])
                 for ns, patient in tqdm(
                     enumerate(task_producer(shadow[:, :], self.Nsurrogates)),
                     total=self.Nsurrogates + 1,
@@ -197,6 +191,19 @@ class NonLinearEstimator:
                     f"{self.folderName}/patient{patientN:02}_{self.nbins}_cor.npy"
                 )
 
+        return statsMI, statsMI_shadow, corr
+
+    def estimate(self):
+
+        statsNames = ["globalratio95control", "globalratio99control", "globalratio05", "globalratio95", "globalratio99", "globaltotalMI",
+                      "globalgaussMI", "globalratio05shadow", "globalratio95shadow", "globalratio99shadow", "globaltotalMIshadow", "globalgaussMIshadow"]
+        globalStats = {name: [] for name in statsNames}
+
+        pool = mp.Pool(self.workers)
+        for patientN in tqdm(range(self.sessions), desc=f"Patient", leave=True):
+            statsMI, statsMI_shadow, corr = self._single_patient_numeric(
+                patientN, pool)
+
             correctedperc95pointer = (self.Nsurrogates * (0.95) - 0.5) / (
                 self.Nsurrogates - 1
             )
@@ -226,8 +233,8 @@ class NonLinearEstimator:
             )
             ratio95control = np.mean(pvalue_NMI < 0.0500001)
             ratio99control = np.mean(pvalue_NMI < 0.0100001)
-            globalStats["globalratio95control"][patientN] = ratio95control
-            globalStats["globalratio99control"][patientN] = ratio99control
+            globalStats["globalratio95control"].append(ratio95control)
+            globalStats["globalratio99control"].append(ratio99control)
 
             perc95_shadow = np.quantile(
                 statsMI_shadow[:, 1:], correctedperc95pointer, 1
@@ -262,11 +269,12 @@ class NonLinearEstimator:
             # std_cont_mi_unisurr=np.std(corr_statsMI_univar,1)
             # allpairs_mean_cont_mi_unisurr = np.mean(corr_statsMI_univar)
 
-            globalStats["globalratio05"][patientN] = ratio05
-            globalStats["globalratio95"][patientN] = ratio95
-            globalStats["globalratio99"][patientN] = ratio99
-            globalStats["globaltotalMI"][patientN] = allpairs_cont_mi_data
-            globalStats["globalgaussMI"][patientN] = allpairs_mean_cont_mi_multisurr
+            globalStats["globalratio05"].append(ratio05)
+            globalStats["globalratio95"].append(ratio95)
+            globalStats["globalratio99"].append(ratio99)
+            globalStats["globaltotalMI"].append(allpairs_cont_mi_data)
+            globalStats["globalgaussMI"].append(
+                allpairs_mean_cont_mi_multisurr)
 
             corr_statsMI_shadow = self.corrector.correctI(statsMI_shadow)
 
@@ -277,11 +285,13 @@ class NonLinearEstimator:
             allpairs_mean_cont_mi_multisurrshadow = np.mean(
                 corr_statsMI_shadow[:, 1:])
 
-            globalStats["globalratio05shadow"][patientN] = ratio05_shadow
-            globalStats["globalratio95shadow"][patientN] = ratio95_shadow
-            globalStats["globalratio99shadow"][patientN] = ratio99_shadow
-            globalStats["globaltotalMIshadow"][patientN] = allpairs_cont_mi_datashadow
-            globalStats["globalgaussMIshadow"][patientN] = allpairs_mean_cont_mi_multisurrshadow
+            globalStats["globalratio05shadow"].append(ratio05_shadow)
+            globalStats["globalratio95shadow"].append(ratio95_shadow)
+            globalStats["globalratio99shadow"].append(ratio99_shadow)
+            globalStats["globaltotalMIshadow"].append(
+                allpairs_cont_mi_datashadow)
+            globalStats["globalgaussMIshadow"].append(
+                allpairs_mean_cont_mi_multisurrshadow)
 
             if (
                 not os.path.isfile(
