@@ -115,8 +115,6 @@ class NonLinearEstimator:
             if not os.path.isfile(
                 f"{self.folderName}/patient{patientN:02}_{self.nbins}.npy"
             ):
-                shadow = surrogate(self.mat[:, :, patientN])
-
                 statsMI = np.zeros([pairNum, self.Nsurrogates + 1])
                 for ns, patient in tqdm(
                     enumerate(
@@ -134,7 +132,17 @@ class NonLinearEstimator:
                             for zone2 in range(zone1 + 1, self.regions)
                         ),
                     )
+                np.save(
+                    f"{self.folderName}/patient{patientN:02}_{self.nbins}", statsMI)
+            else:
+                statsMI = np.load(
+                    f"{self.folderName}/patient{patientN:02}_{self.nbins}.npy"
+                )
 
+            if not os.path.isfile(
+                f"{self.folderName}/patient{patientN:02}_{self.nbins}_sha.npy"
+            ):
+                shadow = surrogate(self.mat[:, :, patientN])
                 statsMI_shadow = np.zeros([pairNum, self.Nsurrogates + 1])
                 for ns, patient in tqdm(
                     enumerate(task_producer(shadow[:, :], self.Nsurrogates)),
@@ -167,8 +175,6 @@ class NonLinearEstimator:
                 )
 
                 np.save(
-                    f"{self.folderName}/patient{patientN:02}_{self.nbins}", statsMI)
-                np.save(
                     f"{self.folderName}/patient{patientN:02}_{self.nbins}_sha",
                     statsMI_shadow,
                 )
@@ -177,9 +183,6 @@ class NonLinearEstimator:
                     f"{self.folderName}/patient{patientN:02}_{self.nbins}_cor", corr
                 )
             else:
-                statsMI = np.load(
-                    f"{self.folderName}/patient{patientN:02}_{self.nbins}.npy"
-                )
                 statsMI_shadow = np.load(
                     f"{self.folderName}/patient{patientN:02}_{self.nbins}_sha.npy"
                 )
