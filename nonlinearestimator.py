@@ -197,7 +197,11 @@ class NonLinearEstimator:
 
         statsNames = ["globalratio95control", "globalratio99control", "globalratio05", "globalratio95", "globalratio99", "globaltotalMI",
                       "globalgaussMI", "globalratio05shadow", "globalratio95shadow", "globalratio99shadow", "globaltotalMIshadow", "globalgaussMIshadow"]
-        globalStats = {name: [] for name in statsNames}
+        if os.path.isfile(os.path.join(self.folderName,"globalStats.json")):
+            with open(os.path.join(self.folderName,"globalStats.json")) as fp:
+                self.globalStats=json.load(fp)
+        else:
+            self.globalStats = {name: [] for name in statsNames}
 
         pool = mp.Pool(self.workers)
         for patientN in tqdm(range(self.sessions), desc=f"Patient", leave=True):
@@ -230,8 +234,8 @@ class NonLinearEstimator:
             )
             ratio95control = np.mean(pvalue_NMI < 0.0500001)
             ratio99control = np.mean(pvalue_NMI < 0.0100001)
-            globalStats["globalratio95control"].append(ratio95control)
-            globalStats["globalratio99control"].append(ratio99control)
+            self.globalStats["globalratio95control"].append(ratio95control)
+            self.globalStats["globalratio99control"].append(ratio99control)
 
             perc95_shadow = np.quantile(
                 statsMI_shadow[:, 1:], correctedperc95pointer, 1
@@ -259,11 +263,11 @@ class NonLinearEstimator:
             # std_cont_mi_unisurr=np.std(corr_statsMI_univar,1)
             # allpairs_mean_cont_mi_unisurr = np.mean(corr_statsMI_univar)
 
-            globalStats["globalratio05"].append(ratio05)
-            globalStats["globalratio95"].append(ratio95)
-            globalStats["globalratio99"].append(ratio99)
-            globalStats["globaltotalMI"].append(allpairs_cont_mi_data)
-            globalStats["globalgaussMI"].append(
+            self.globalStats["globalratio05"].append(ratio05)
+            self.globalStats["globalratio95"].append(ratio95)
+            self.globalStats["globalratio99"].append(ratio99)
+            self.globalStats["globaltotalMI"].append(allpairs_cont_mi_data)
+            self.globalStats["globalgaussMI"].append(
                 allpairs_mean_cont_mi_multisurr)
 
             corr_statsMI_shadow = self.corrector.correctI(statsMI_shadow)
@@ -275,26 +279,18 @@ class NonLinearEstimator:
             allpairs_mean_cont_mi_multisurrshadow = np.mean(
                 corr_statsMI_shadow[:, 1:])
 
-            globalStats["globalratio05shadow"].append(ratio05_shadow)
-            globalStats["globalratio95shadow"].append(ratio95_shadow)
-            globalStats["globalratio99shadow"].append(ratio99_shadow)
-            globalStats["globaltotalMIshadow"].append(
+            self.globalStats["globalratio05shadow"].append(ratio05_shadow)
+            self.globalStats["globalratio95shadow"].append(ratio95_shadow)
+            self.globalStats["globalratio99shadow"].append(ratio99_shadow)
+            self.globalStats["globaltotalMIshadow"].append(
                 allpairs_cont_mi_datashadow)
-            globalStats["globalgaussMIshadow"].append(
+            self.globalStats["globalgaussMIshadow"].append(
                 allpairs_mean_cont_mi_multisurrshadow)
 
-            if (
-                not os.path.isfile(
-                    f"{self.folderName}/patient{patientN:02}_{self.nbins}.pdf"
-                )
-                or self.display
-            ):
-                title = f"Patient {patientN} - {allpairs_cont_mi_data:.3}/{allpairs_mean_cont_mi_multisurr:.3} (^{ratio95:.3}-{ratio95control:.3}_{ratio95_shadow:.3})"
-                self._smile_plot(patientN, corr, corr_statsMI, title)
+            with open(os.path.join(self.folderName,"globalStats.json"), "w") as fp:
+                json.dump(self.globalStats, fp)
         pool.close()
 
-        with open(f"{self.folderName}/globalStats.json", "w") as fp:
-            json.dump(globalStats, fp)
 
     def _smile_plot(self, patientN, corr, corr_statsMI, title):
         correctedperc01pointer = (self.Nsurrogates * (0.01) - 0.5) / (
