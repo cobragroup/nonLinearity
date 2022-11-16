@@ -35,6 +35,9 @@ class NonLinearEstimator:
             self.nbins = nbins
         self.display = config.getboolean("global", "display", fallback=True)
         self.workers = config.getint("global", "workers", fallback=4)
+        self.ouputFolder = config.get("global", "outputFolder", fallback="..")
+        if not os.path.isabs(self.ouputFolder):
+            self.ouputFolder = os.path.join(path, self.ouputFolder)
 
         self.Nsurrogates = config.getint(
             "estimate", "Nsurrogates", fallback=99)
@@ -60,7 +63,7 @@ class NonLinearEstimator:
         assert os.path.isfile(
             self.fileName), f"Missing dataset at specified path: {self.fileName}."
         folderName = os.path.splitext(fileName)[0] + f"_bin{self.nbins}"
-        self.folderName = os.path.join(filePath, folderName)
+        self.folderName = os.path.join(self.ouputFolder, folderName)
         if not os.path.isdir(self.folderName):
             os.mkdir(self.folderName)
         print(
