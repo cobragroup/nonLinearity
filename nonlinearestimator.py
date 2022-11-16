@@ -287,12 +287,15 @@ class NonLinearEstimator:
             self.globalStats["globalgaussMIshadow"].append(
                 allpairs_mean_cont_mi_multisurrshadow)
 
+            plotAlreadyThere = os.path.isfile(f"{self.folderName}/patient{patientN:02}_{self.nbins}.pdf") 
+            if (not plotAlreadyThere) or self.display:
+                self._smile_plot(patientN, corr, corr_statsMI)
             with open(os.path.join(self.folderName,"globalStats.json"), "w") as fp:
                 json.dump(self.globalStats, fp)
         pool.close()
 
 
-    def _smile_plot(self, patientN, corr, corr_statsMI, title):
+    def _smile_plot(self, patientN, corr, corr_statsMI):
         correctedperc01pointer = (self.Nsurrogates * (0.01) - 0.5) / (
             self.Nsurrogates - 1
         )
@@ -315,6 +318,7 @@ class NonLinearEstimator:
         plt.plot(corr[neworder], perc99_PLOT[neworder], "g")
         plt.xlabel("correlation")
         plt.ylabel("mutual information (nats)")
+        title = f"Patient {patientN} - {self.globalStats['globaltotalMI'][patientN]:.3}/{self.globalStats['globalgaussMI'][patientN]:.3} (^{self.globalStats['globalratio95'][patientN]:.3}-{self.globalStats['globalratio95'][patientN]:.3}_{self.globalStats['globalratio95shadow'][patientN]:.3})"
         plt.title(title)
         plt.ylim(bottom=0)
         if not os.path.isfile(
