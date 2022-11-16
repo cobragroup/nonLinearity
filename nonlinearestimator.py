@@ -75,6 +75,8 @@ class NonLinearEstimator:
 
         self.mat = tmp_mat[self.fieldName][:, :, self.hc_slice]
         duration, self.regions, self.sessions = self.mat.shape
+        with open(os.path.join(self.folderName, "shape.json"), "w") as fp:
+            json.dump(self.mat.shape, fp)
 
         print(
             "Loaded data matrix: {} samples by {} regions by {} sessions".format(
