@@ -116,7 +116,7 @@ class NonLinearEstimator:
         globalStats = {name: np.zeros(self.sessions) for name in statsNames}
 
         pool = mp.Pool(self.workers)
-        for patientN in tqdm(range(self.sessions), desc=f"Patient:", leave=True):
+        for patientN in tqdm(range(self.sessions), desc=f"Patient", leave=True):
             if not os.path.isfile(
                 f"{self.folderName}/patient{patientN:02}_{self.nbins}.npy"
             ):
