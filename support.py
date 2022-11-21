@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.stats import norm
 from scipy.stats import entropy
+import warnings
 
 # %%
 def normalise(vec):
@@ -45,16 +46,23 @@ def pair_mutual_information(x, y, binNo):
 
 
 def surrogate(x, multivariate=True):
-    """Generate a common angle surrogate of a 2D array (surrogates the first axis)."""
+    """Generate a common angle surrogate of a N-D array (surrogates the first axis).
+        Input:
+        x: an N-dimensional np.Array with time along the first axis (time x whatever x ... x whatever).
+        multivariate: if True (default) applies the same random phases to all the series.
+        Output:
+        np.array containing the surrogate time series such that output shape matches input shape."""
+    if x.shape[1] > x.shape[0]:
+        warnings.warn("It looks you have more series than timepoints, or maybe you should transpose the input.")
     if multivariate:
         rpha = np.exp(2 * np.pi * np.random.rand(int(x.shape[0] / 2 + 1)) * 1.0j)
         fftX1 = np.fft.rfft(x, axis=0).T * rpha
     else:
         rpha = np.exp(
-            2 * np.pi * np.random.rand(int(x.shape[0] / 2 + 1), x.shape[1]) * 1.0j
+            2 * np.pi * np.random.rand(int(x.shape[0] / 2 + 1), *x.shape[1:]) * 1.0j
         )
         fftX1 = (np.fft.rfft(x, axis=0) * rpha).T
-    xs = np.fft.irfft(fftX1).T
+    xs = np.fft.irfft(fftX1, n=x.shape[0]).T
     return xs
 
 
