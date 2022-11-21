@@ -17,7 +17,9 @@ from support import pair_mutual_information, surrogate, task_producer
 
 # %%
 class NonLinearEstimator:
-    statsNames = ["globalratio95control", "globalratio99control", "globalratio05", "globalratio95", "globalratio99", "globaltotalMI", "globalgaussMI", "globalratio05shadow", "globalratio95shadow", "globalratio99shadow", "globaltotalMIshadow", "globalgaussMIshadow"]
+    statsNames = ["globalratio95control", "globalratio99control", "globalratio05", "globalratio95", "globalratio99", "globaltotalMI",
+                  "globalgaussMI", "globalratio05shadow", "globalratio95shadow", "globalratio99shadow", "globaltotalMIshadow", "globalgaussMIshadow"]
+
     def __init__(self, configFile=None, dataset=None, nbins=None, regions=""):
         config = configparser.ConfigParser()
         configfile = configFile if configFile is not None else os.path.join(
@@ -204,9 +206,9 @@ class NonLinearEstimator:
         pool = mp.Pool(self.workers)
         for patientN in tqdm(range(self.sessions), desc=f"Patient", leave=True):
 
-            globalStatsComputedSubects = min(
-                map(len(self.globalStats.values())))
-            globalsToBeComputed = globalStatsComputedSubects < patientN+1
+            globalStatsComputedSubjects = min(
+                map(len, self.globalStats.values()))
+            globalsToBeComputed = globalStatsComputedSubjects < patientN+1
 
             plotAlreadyThere = os.path.isfile(
                 f"{self.folderName}/patient{patientN:02}_{self.nbins}.pdf")
@@ -218,8 +220,8 @@ class NonLinearEstimator:
                 self.corr_statsMI = None
 
                 if globalsToBeComputed:
-                    assert max(map(len(self.globalStats.values(
-                    )))) != globalStatsComputedSubects, "Inconsistent globalStats.json"
+                    assert max(map(len, self.globalStats.values(
+                    ))) == globalStatsComputedSubjects, "Inconsistent globalStats.json"
                     self._statistics(statsMI, statsMI_shadow)
 
                 if plottingNeeded:
