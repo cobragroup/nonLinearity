@@ -9,7 +9,7 @@ def entr (x):
     y = np.zeros_like(x)
     for i, t in enumerate(x):
         if t>0:
-            y[i] -t*np.log(t)
+            y[i]=-t*np.log(t)
     return y
 
 @jit(float64(float64[:]), nopython=True, nogil=True, cache=True)
