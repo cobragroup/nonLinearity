@@ -8,6 +8,8 @@ el_path = os.path.abspath(os.path.dirname(__file__))
 _libMI = cdll.LoadLibrary(os.path.join(el_path, 'bin/libpmi.so'))
 _libMI.pair_mutual_information.argtypes = (POINTER(c_double), POINTER(c_double), c_int, c_int)
 _libMI.pair_mutual_information.restype = c_double
+_libMI.total_mutual_information.argtypes = (POINTER(c_double), c_int, c_int, c_int, POINTER(c_double))
+_libMI.total_mutual_information.restype = None
 
 def normalise(vec):
     rv = norm(0, 1)
@@ -36,6 +38,16 @@ def pair_mutual_information(x, y, binNo):
     _nsamples = len(x)
     
     return _libMI.pair_mutual_information(x.ctypes.data_as(POINTER(c_double)), y.ctypes.data_as(POINTER(c_double)), c_int(_nsamples), c_int(binNo))
+
+
+def total_mutual_information(data, binNo=None):
+    if binNo is None:
+        data, binNo = data
+    times, regions = data.shape
+    totPairs = int(regions*(regions-1)/2)
+    out = np.zeros(totPairs, dtype=np.float64)
+    _libMI.total_mutual_information(data.ctypes.data_as(POINTER(c_double)), c_int(times), c_int(regions), c_int(binNo), out.ctypes.data_as(POINTER(c_double)))
+    return out
 
 
 def surrogate(x, multivariate=True):
