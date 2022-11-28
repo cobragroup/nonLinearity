@@ -114,8 +114,6 @@ class NonLinearEstimator:
         self.estimate()
 
     def _single_patient_numeric(self, patientN, pool: mp.Pool):
-        chunksize = min(
-            1000, int(self.regions*(self.regions-1)/2/self.workers))
         if not os.path.isfile(
             f"{self.folderName}/patient{patientN:02}_{self.nbins}.npy"
         ):
