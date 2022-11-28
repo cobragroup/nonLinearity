@@ -115,7 +115,7 @@ class Corrector:
         plt.xlabel("True MI")
         plt.ylabel("Estimated MI")
         if not os.path.isfile(f"{self.folderName}/correctionMap_{self.nbins}.pdf"):
-            plt.savefig(f"{self.folderName}/correctionMap_{self.nbins}.pdf")
+            plt.savefig(f"{self.folderName}/correctionMap_{self.nbins}.pdf", bbox_inches="tight")
         if self.display:
             plt.show()
         else:

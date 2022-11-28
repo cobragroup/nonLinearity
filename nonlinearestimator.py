@@ -317,7 +317,7 @@ class NonLinearEstimator:
             f"{self.folderName}/patient{patientN:02}_{self.nbins}.pdf"
         ):
             plt.savefig(
-                f"{self.folderName}/patient{patientN:02}_{self.nbins}.pdf"
+                f"{self.folderName}/patient{patientN:02}_{self.nbins}.pdf", bbox_inches="tight"
             )
         if self.display:
             plt.show()
