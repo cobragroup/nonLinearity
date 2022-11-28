@@ -3,7 +3,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
-import multiprocessing as mp
 import configparser
 import json
 import scipy.io as sio
@@ -113,7 +112,7 @@ class NonLinearEstimator:
 
         self.estimate()
 
-    def _single_patient_numeric(self, patientN, pool):
+    def _single_patient_numeric(self, patientN):
         if not os.path.isfile(
             f"{self.folderName}/patient{patientN:02}_{self.nbins}.npy"
         ):
@@ -126,14 +125,8 @@ class NonLinearEstimator:
                 total=self.Nsurrogates + 1,
                 desc=f"Patient {patientN} true", leave=False
             ):
-                statsMI[:, ns] = pool.starmap(
-                    pair_mutual_information,
-                    (
-                        (patient[:, zone1], patient[:, zone2], self.nbins)
-                        for zone1 in range(self.regions)
-                        for zone2 in range(zone1 + 1, self.regions)
-                    ),
-                )
+                for i, arg in enumerate((patient[:, zone1], patient[:, zone2], self.nbins) for zone1 in range(self.regions) for zone2 in range(zone1 + 1, self.regions)):
+                    statsMI[i, ns] = pair_mutual_information(*arg)
             np.save(
                 f"{self.folderName}/patient{patientN:02}_{self.nbins}", statsMI)
         else:
@@ -151,14 +144,8 @@ class NonLinearEstimator:
                 total=self.Nsurrogates + 1,
                 desc=f"Patient {patientN} shadow", leave=False
             ):
-                statsMI_shadow[:, ns] = pool.starmap(
-                    pair_mutual_information,
-                    (
-                        (patient[:, zone1], patient[:, zone2], self.nbins)
-                        for zone1 in range(self.regions)
-                        for zone2 in range(zone1 + 1, self.regions)
-                    ),
-                )
+                for i, arg in enumerate((patient[:, zone1], patient[:, zone2], self.nbins) for zone1 in range(self.regions) for zone2 in range(zone1 + 1, self.regions)):
+                    statsMI_shadow[i, ns] = pair_mutual_information(*arg)
 
             # statsMI_univar = np.zeros([pairNum, self.Nsurrogates])
             # for ns, patient in tqdm(enumerate(task_producer(self.mat[:, :, patientN], self.Nsurrogates, False)), total=self.Nsurrogates+1, desc=f"Patient {patientN} univar", leave=False):
@@ -203,7 +190,6 @@ class NonLinearEstimator:
         else:
             self.globalStats = {name: [] for name in self.statsNames}
 
-        pool = mp.Pool(self.workers)
         for patientN in tqdm(range(self.sessions), desc=f"Patient", leave=True):
 
             globalStatsComputedSubjects = min(
@@ -216,7 +202,7 @@ class NonLinearEstimator:
 
             if globalsToBeComputed or plottingNeeded:
                 statsMI, statsMI_shadow, corr = self._single_patient_numeric(
-                    patientN, pool)
+                    patientN)
                 self.corr_statsMI = None
 
                 if globalsToBeComputed:
@@ -229,7 +215,6 @@ class NonLinearEstimator:
 
             with open(os.path.join(self.folderName, "globalStats.json"), "w") as fp:
                 json.dump(self.globalStats, fp)
-        pool.close()
 
     def _statistics(self, statsMI, statsMI_shadow):
         correctedperc95pointer = (self.Nsurrogates * (0.95) - 0.5) / (
@@ -349,3 +334,9 @@ class NonLinearEstimator:
             plt.show()
         else:
             plt.close()
+
+
+
+if __name__ == "__main__":
+    estimator = NonLinearEstimator(dataset="benchmark")
+    estimator.run()

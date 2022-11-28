@@ -2,8 +2,13 @@ import numpy as np
 from scipy.stats import norm
 from scipy.stats import entropy
 import warnings
+import os
+from ctypes import Structure, addressof, byref, c_char, c_char_p, c_int, c_long, c_uint16, c_uint32, c_ushort, c_void_p, cdll, c_ulong, POINTER, cast, c_char_p, c_double
+el_path = os.path.abspath(os.path.dirname(__file__))
+_libMI = cdll.LoadLibrary(os.path.join(el_path, 'bin/libpmi.so'))
+_libMI.pair_mutual_information.argtypes = (POINTER(c_double), POINTER(c_double), c_int, c_int)
+_libMI.pair_mutual_information.restype = c_double
 
-# %%
 def normalise(vec):
     rv = norm(0, 1)
     return rv.ppf((np.argsort(np.argsort(vec)) + 0.5) / len(vec))
@@ -28,21 +33,9 @@ def single_iter(data):
 
 def pair_mutual_information(x, y, binNo):
     assert len(x) == len(y), "x and y must have the same length"
-
     _nsamples = len(x)
-
-    xbins = bin_loc(x, binNo)
-    ybins = bin_loc(y, binNo)
-    bins = np.array([xbins, ybins])
-    pxy = np.histogram2d(x, y, bins)[0] / _nsamples
-    px = np.histogram(x, xbins)[0] / _nsamples
-    py = np.histogram(y, ybins)[0] / _nsamples
-
-    hx = entropy(px)
-    hy = entropy(py)
-    hxy = entropy(pxy.flatten())
-
-    return hx + hy - hxy
+    
+    return _libMI.pair_mutual_information(x.ctypes.data_as(POINTER(c_double)), y.ctypes.data_as(POINTER(c_double)), c_int(_nsamples), c_int(binNo))
 
 
 def surrogate(x, multivariate=True):
