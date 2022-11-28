@@ -13,7 +13,7 @@ import os
 path = os.path.dirname(os.path.realpath(__file__))
 sys.path.append(path)
 from corrector import Corrector
-from support import pair_mutual_information, surrogate, task_producer
+from support import pair_mutual_information, total_mutual_information, surrogate, task_producer
 
 
 class NonLinearEstimator:
@@ -113,28 +113,15 @@ class NonLinearEstimator:
 
         self.estimate()
 
-    def _single_patient_numeric(self, patientN, pool:mp.Pool):
-        chunksize = min(1000, int(self.regions*(self.regions-1)/2/self.workers))
+    def _single_patient_numeric(self, patientN, pool: mp.Pool):
+        chunksize = min(
+            1000, int(self.regions*(self.regions-1)/2/self.workers))
         if not os.path.isfile(
             f"{self.folderName}/patient{patientN:02}_{self.nbins}.npy"
         ):
             statsMI = np.zeros([self.pairNum, self.Nsurrogates + 1])
-            for ns, patient in tqdm(
-                enumerate(
-                    task_producer(
-                        self.mat[:, :, patientN], self.Nsurrogates)
-                ),
-                total=self.Nsurrogates + 1,
-                desc=f"Patient {patientN} true", leave=False
-            ):
-                statsMI[:, ns] = pool.starmap(
-                    pair_mutual_information,
-                    (
-                        (patient[:, zone1], patient[:, zone2], self.nbins)
-                        for zone1 in range(self.regions)
-                        for zone2 in range(zone1 + 1, self.regions)
-                    ), chunksize
-                )
+            for ns, tmi in tqdm(enumerate(pool.imap(total_mutual_information, ((patient, self.nbins) for patient in task_producer(self.mat[:, :, patientN], self.Nsurrogates)))), total=self.Nsurrogates + 1, desc=f"Patient {patientN} true", leave=False):
+                statsMI[:, ns] = tmi
             np.save(
                 f"{self.folderName}/patient{patientN:02}_{self.nbins}", statsMI)
         else:
@@ -147,19 +134,8 @@ class NonLinearEstimator:
         ):
             shadow = surrogate(self.mat[:, :, patientN])
             statsMI_shadow = np.zeros([self.pairNum, self.Nsurrogates + 1])
-            for ns, patient in tqdm(
-                enumerate(task_producer(shadow[:, :], self.Nsurrogates)),
-                total=self.Nsurrogates + 1,
-                desc=f"Patient {patientN} shadow", leave=False
-            ):
-                statsMI_shadow[:, ns] = pool.starmap(
-                    pair_mutual_information,
-                    (
-                        (patient[:, zone1], patient[:, zone2], self.nbins)
-                        for zone1 in range(self.regions)
-                        for zone2 in range(zone1 + 1, self.regions)
-                    ), chunksize
-                )
+            for ns, tmi in tqdm(enumerate(pool.imap(total_mutual_information, ((patient, self.nbins) for patient in task_producer(shadow[:, :], self.Nsurrogates)))), total=self.Nsurrogates + 1, desc=f"Patient {patientN} shadow", leave=False):
+                statsMI[:, ns] = tmi
 
             # statsMI_univar = np.zeros([pairNum, self.Nsurrogates])
             # for ns, patient in tqdm(enumerate(task_producer(self.mat[:, :, patientN], self.Nsurrogates, False)), total=self.Nsurrogates+1, desc=f"Patient {patientN} univar", leave=False):
@@ -349,3 +325,8 @@ class NonLinearEstimator:
             plt.show()
         else:
             plt.close()
+
+
+if __name__ == "__main__":
+    estimator = NonLinearEstimator(dataset="benchmark")
+    estimator.run()
