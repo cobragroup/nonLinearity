@@ -3,7 +3,7 @@ from scipy.stats import norm
 from scipy.stats import entropy
 import warnings
 import os
-from ctypes import Structure, addressof, byref, c_char, c_char_p, c_int, c_long, c_uint16, c_uint32, c_ushort, c_void_p, cdll, c_ulong, POINTER, cast, c_char_p, c_double
+from ctypes import c_int, cdll, POINTER, c_double
 el_path = os.path.abspath(os.path.dirname(__file__))
 _libMI = cdll.LoadLibrary(os.path.join(el_path, 'bin/libpmi.so'))
 _libMI.pair_mutual_information.argtypes = (POINTER(c_double), POINTER(c_double), c_int, c_int)
