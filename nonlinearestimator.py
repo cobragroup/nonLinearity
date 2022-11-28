@@ -113,7 +113,8 @@ class NonLinearEstimator:
 
         self.estimate()
 
-    def _single_patient_numeric(self, patientN, pool):
+    def _single_patient_numeric(self, patientN, pool:mp.Pool):
+        chunksize = min(1000, int(self.regions*(self.regions-1)/2/self.workers))
         if not os.path.isfile(
             f"{self.folderName}/patient{patientN:02}_{self.nbins}.npy"
         ):
@@ -132,7 +133,7 @@ class NonLinearEstimator:
                         (patient[:, zone1], patient[:, zone2], self.nbins)
                         for zone1 in range(self.regions)
                         for zone2 in range(zone1 + 1, self.regions)
-                    ),
+                    ), chunksize
                 )
             np.save(
                 f"{self.folderName}/patient{patientN:02}_{self.nbins}", statsMI)
@@ -157,7 +158,7 @@ class NonLinearEstimator:
                         (patient[:, zone1], patient[:, zone2], self.nbins)
                         for zone1 in range(self.regions)
                         for zone2 in range(zone1 + 1, self.regions)
-                    ),
+                    ), chunksize
                 )
 
             # statsMI_univar = np.zeros([pairNum, self.Nsurrogates])
@@ -203,33 +204,32 @@ class NonLinearEstimator:
         else:
             self.globalStats = {name: [] for name in self.statsNames}
 
-        pool = mp.Pool(self.workers)
-        for patientN in tqdm(range(self.sessions), desc=f"Patient", leave=True):
+        with mp.Pool(self.workers) as pool:
+            for patientN in tqdm(range(self.sessions), desc=f"Patient", leave=True):
 
-            globalStatsComputedSubjects = min(
-                map(len, self.globalStats.values()))
-            globalsToBeComputed = globalStatsComputedSubjects < patientN+1
+                globalStatsComputedSubjects = min(
+                    map(len, self.globalStats.values()))
+                globalsToBeComputed = globalStatsComputedSubjects < patientN+1
 
-            plotAlreadyThere = os.path.isfile(
-                f"{self.folderName}/patient{patientN:02}_{self.nbins}.pdf")
-            plottingNeeded = (not plotAlreadyThere) or self.display
+                plotAlreadyThere = os.path.isfile(
+                    f"{self.folderName}/patient{patientN:02}_{self.nbins}.pdf")
+                plottingNeeded = (not plotAlreadyThere) or self.display
 
-            if globalsToBeComputed or plottingNeeded:
-                statsMI, statsMI_shadow, corr = self._single_patient_numeric(
-                    patientN, pool)
-                self.corr_statsMI = None
+                if globalsToBeComputed or plottingNeeded:
+                    statsMI, statsMI_shadow, corr = self._single_patient_numeric(
+                        patientN, pool)
+                    self.corr_statsMI = None
 
-                if globalsToBeComputed:
-                    assert max(map(len, self.globalStats.values(
-                    ))) == globalStatsComputedSubjects, "Inconsistent globalStats.json"
-                    self._statistics(statsMI, statsMI_shadow)
+                    if globalsToBeComputed:
+                        assert max(map(len, self.globalStats.values(
+                        ))) == globalStatsComputedSubjects, "Inconsistent globalStats.json"
+                        self._statistics(statsMI, statsMI_shadow)
 
-                if plottingNeeded:
-                    self._smile_plot(patientN, corr, statsMI)
+                    if plottingNeeded:
+                        self._smile_plot(patientN, corr, statsMI)
 
-            with open(os.path.join(self.folderName, "globalStats.json"), "w") as fp:
-                json.dump(self.globalStats, fp)
-        pool.close()
+                with open(os.path.join(self.folderName, "globalStats.json"), "w") as fp:
+                    json.dump(self.globalStats, fp)
 
     def _statistics(self, statsMI, statsMI_shadow):
         correctedperc95pointer = (self.Nsurrogates * (0.95) - 0.5) / (
