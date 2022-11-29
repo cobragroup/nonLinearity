@@ -3,13 +3,19 @@ from scipy.stats import norm
 from scipy.stats import entropy
 import warnings
 import os
-from ctypes import c_int, cdll, POINTER, c_double
+from ctypes import c_int, cdll, POINTER, c_double, Structure
 el_path = os.path.abspath(os.path.dirname(__file__))
 _libMI = cdll.LoadLibrary(os.path.join(el_path, 'bin/libpmi.so'))
+
+class returnStats (Structure):
+    _fields_ = [("ratio95control", c_double), ("ratio99control", c_double), ("ratio05", c_double), ("ratio95", c_double), ("ratio99", c_double), ("totalMI", c_double), ("gaussMI", c_double)]
+
 _libMI.pair_mutual_information.argtypes = (POINTER(c_double), POINTER(c_double), c_int, c_int)
 _libMI.pair_mutual_information.restype = c_double
 _libMI.total_mutual_information.argtypes = (POINTER(c_double), c_int, c_int, c_int, POINTER(c_double))
 _libMI.total_mutual_information.restype = None
+_libMI.statistics.argtypes = (POINTER(c_double), c_int, c_int)
+_libMI.statistics.restype = returnStats
 
 def normalise(vec):
     rv = norm(0, 1)
@@ -48,6 +54,11 @@ def total_mutual_information(data, binNo=None):
     out = np.zeros(totPairs, dtype=np.float64)
     _libMI.total_mutual_information(data.ctypes.data_as(POINTER(c_double)), c_int(times), c_int(regions), c_int(binNo), out.ctypes.data_as(POINTER(c_double)))
     return out
+
+
+def statistics (data: np.array):
+    numPairs, numSurrogatesPU = data.shape
+    ret = _libMI.statistics(data.ctypes.data_as(POINTER(c_double)), c_int(numPairs), c_int(numSurrogatesPU-1))
 
 
 def surrogate(x, multivariate=True):

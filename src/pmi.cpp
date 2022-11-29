@@ -70,3 +70,10 @@ void total_mutual_information(double *data, int times, int regions, int binNo, d
     // std::cerr << "fatto!" <<std::endl;
     return;
 }
+
+
+returnStats statistics (double *data, int numPairs, int numSurrogates){
+    double correctedperc95pointer = (numSurrogates * (0.95) - 0.5) / (numSurrogates - 1);
+    double correctedperc99pointer = (numSurrogates * (0.99) - 0.5) / (numSurrogates - 1);
+    double correctedperc05pointer = (numSurrogates * (0.05) - 0.5) / (numSurrogates - 1);
+}
