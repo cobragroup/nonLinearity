@@ -13,7 +13,7 @@ import os
 path = os.path.dirname(os.path.realpath(__file__))
 sys.path.append(path)
 from corrector import Corrector
-from support import pair_mutual_information, total_mutual_information, surrogate, task_producer
+from support import pair_mutual_information, total_mutual_information, surrogate, task_producer, statistics
 
 
 class NonLinearEstimator:
@@ -206,84 +206,13 @@ class NonLinearEstimator:
                     json.dump(self.globalStats, fp)
 
     def _statistics(self, statsMI, statsMI_shadow):
-        correctedperc95pointer = (self.Nsurrogates * (0.95) - 0.5) / (
-            self.Nsurrogates - 1
-        )
-        correctedperc99pointer = (self.Nsurrogates * (0.99) - 0.5) / (
-            self.Nsurrogates - 1
-        )
-        correctedperc05pointer = (self.Nsurrogates * (0.05) - 0.5) / (
-            self.Nsurrogates - 1
-        )
-
-        perc95 = np.quantile(statsMI[:, 1:], correctedperc95pointer, 1)
-        nonlin95 = statsMI[:, 0] > perc95
-        ratio95 = np.mean(nonlin95)
-        perc99 = np.quantile(statsMI[:, 1:], correctedperc99pointer, 1)
-        nonlin99 = statsMI[:, 0] > perc99
-        ratio99 = np.mean(nonlin99)
-        perc05 = np.quantile(statsMI[:, 1:], correctedperc05pointer, 1)
-        nonlin05 = statsMI[:, 0] < perc05
-        ratio05 = np.mean(nonlin05)
-
-        # pvalue_MI = 1 - np.sum(statsMI_univar < statsMI[:, 0], 1)/(self.Nsurrogates+1)
-        pvalue_NMI = 1 - np.sum(statsMI[:, 1:].T < statsMI[:, 0], 0) / (
-            self.Nsurrogates + 1
-        )
-        ratio95control = np.mean(pvalue_NMI < 0.0500001)
-        ratio99control = np.mean(pvalue_NMI < 0.0100001)
-        self.globalStats["globalratio95control"].append(ratio95control)
-        self.globalStats["globalratio99control"].append(ratio99control)
-
-        perc95_shadow = np.quantile(
-            statsMI_shadow[:, 1:], correctedperc95pointer, 1
-        )
-        nonlin95_shadow = statsMI_shadow[:, 0] > perc95_shadow
-        ratio95_shadow = np.mean(nonlin95_shadow)
-        perc99_shadow = np.quantile(
-            statsMI_shadow[:, 1:], correctedperc99pointer, 1
-        )
-        nonlin99_shadow = statsMI_shadow[:, 0] > perc99_shadow
-        ratio99_shadow = np.mean(nonlin99_shadow)
-        perc05_shadow = np.quantile(
-            statsMI_shadow[:, 1:], correctedperc05pointer, 1
-        )
-        nonlin05_shadow = statsMI_shadow[:, 0] < perc05_shadow
-        ratio05_shadow = np.mean(nonlin05_shadow)
-
-        self.corr_statsMI = self.corrector.correctI(statsMI)
-
-        allpairs_cont_mi_data = np.mean(self.corr_statsMI[:, 0])
-        allpairs_mean_cont_mi_multisurr = np.mean(self.corr_statsMI[:, 1:])
-
-        # corr_statsMI_univar = self.corrector.correctI(statsMI_univar)
-        # mean_cont_mi_unisurr=np.mean(corr_statsMI_univar,1)
-        # std_cont_mi_unisurr=np.std(corr_statsMI_univar,1)
-        # allpairs_mean_cont_mi_unisurr = np.mean(corr_statsMI_univar)
-
-        self.globalStats["globalratio05"].append(ratio05)
-        self.globalStats["globalratio95"].append(ratio95)
-        self.globalStats["globalratio99"].append(ratio99)
-        self.globalStats["globaltotalMI"].append(allpairs_cont_mi_data)
-        self.globalStats["globalgaussMI"].append(
-            allpairs_mean_cont_mi_multisurr)
-
-        corr_statsMI_shadow = self.corrector.correctI(statsMI_shadow)
-
-        # mean_cont_mi_multisurrshadow=np.mean(corr_statsMI_shadow[:,1:],1)
-        # std_cont_mi_multisurrshadow=np.std(corr_statsMI_shadow[:,1:],1)
-
-        allpairs_cont_mi_datashadow = np.mean(corr_statsMI_shadow[:, 0])
-        allpairs_mean_cont_mi_multisurrshadow = np.mean(
-            corr_statsMI_shadow[:, 1:])
-
-        self.globalStats["globalratio05shadow"].append(ratio05_shadow)
-        self.globalStats["globalratio95shadow"].append(ratio95_shadow)
-        self.globalStats["globalratio99shadow"].append(ratio99_shadow)
-        self.globalStats["globaltotalMIshadow"].append(
-            allpairs_cont_mi_datashadow)
-        self.globalStats["globalgaussMIshadow"].append(
-            allpairs_mean_cont_mi_multisurrshadow)
+        statTrue = statistics(statsMI, self.corrector.newco, self.corrector.trueval)
+        statShadow = statistics(statsMI_shadow, self.corrector.newco, self.corrector.trueval)
+        for key in self.statsNames:
+            if "shadow" in key:
+                self.globalStats[key].append(statShadow[key[:-len("shadow")]])
+            else:
+                self.globalStats[key].append(statTrue[key])
 
     def _smile_plot(self, patientN, corr, statsMI):
         correctedperc01pointer = (self.Nsurrogates * (0.01) - 0.5) / (
