@@ -76,10 +76,21 @@ double quantile (std::vector<double>::iterator it, int len, double quant){
     return it[j]*(1-fact)+it[j+1]*fact;
 }
 
-returnStats statistics (double *data, int numPairs, int numSurrogates){
+size_t find_correct (std::vector<double>& vec, double val){
+    auto pos=std::upper_bound(vec.begin(), vec.end()-1, val);
+    if (pos == vec.begin()) return 0;
+    size_t ind = std::distance(vec.begin(), pos);
+    if (pos[0]-val<val-pos[-1]) return ind;
+    return ind-1;
+}
+
+returnStats statistics (double *data, int numPairs, int numSurrogates, double *estim, double *actual, int bins){
     returnStats result;
     double correctedpercpointer[3], fractions[3] = {0.05,0.95,0.99};
     double ratioContr[3]={0}, ratio[3]={0};
+    double meanData = 0, meanSurr = 0;
+    std::vector<double> estimated(estim, estim+bins);
+    
     for (auto i=0; i<3; i++) correctedpercpointer[i] = (numSurrogates * fractions[i] - 0.5) / (numSurrogates - 1);
 
     for (auto j=0; j<numPairs; j++){
@@ -94,6 +105,8 @@ returnStats statistics (double *data, int numPairs, int numSurrogates){
             double small = std::distance(perc.begin()+1, std::upper_bound(perc.begin()+1, perc.end(), perc[0]));
             ratioContr[i]+=(1-small/(numSurrogates+1))<(1-fractions[i]+1e-6);
         }
+        meanData+=actual[find_correct(estimated, perc[0])];
+        for (auto i=1; i<numSurrogates+1; i++)meanSurr+=actual[find_correct(estimated, perc[i])];
     }
     std::cerr << std::endl;
     result.ratio05= 1 - ratio[0]/numPairs;
@@ -101,6 +114,8 @@ returnStats statistics (double *data, int numPairs, int numSurrogates){
     result.ratio99= ratio[2]/numPairs;
     result.ratio95control=ratioContr[1]/numPairs;
     result.ratio99control=ratioContr[2]/numPairs;
+    result.totalMI=meanData/numPairs;
+    result.gaussMI=meanSurr/numPairs/numSurrogates;
 
     return result;
 }
