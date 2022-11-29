@@ -253,7 +253,7 @@ class NonLinearEstimator:
 
         self.corr_statsMI = self.corrector.correctI(statsMI)
 
-        allpairs_cont_mi_data = np.mean(self.corr_statsMI[:, 1])
+        allpairs_cont_mi_data = np.mean(self.corr_statsMI[:, 0])
         allpairs_mean_cont_mi_multisurr = np.mean(self.corr_statsMI[:, 1:])
 
         # corr_statsMI_univar = self.corrector.correctI(statsMI_univar)
@@ -273,7 +273,7 @@ class NonLinearEstimator:
         # mean_cont_mi_multisurrshadow=np.mean(corr_statsMI_shadow[:,1:],1)
         # std_cont_mi_multisurrshadow=np.std(corr_statsMI_shadow[:,1:],1)
 
-        allpairs_cont_mi_datashadow = np.mean(corr_statsMI_shadow[:, 1])
+        allpairs_cont_mi_datashadow = np.mean(corr_statsMI_shadow[:, 0])
         allpairs_mean_cont_mi_multisurrshadow = np.mean(
             corr_statsMI_shadow[:, 1:])
 
