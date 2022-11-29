@@ -14,7 +14,7 @@ _libMI.pair_mutual_information.argtypes = (POINTER(c_double), POINTER(c_double),
 _libMI.pair_mutual_information.restype = c_double
 _libMI.total_mutual_information.argtypes = (POINTER(c_double), c_int, c_int, c_int, POINTER(c_double))
 _libMI.total_mutual_information.restype = None
-_libMI.statistics.argtypes = (POINTER(c_double), c_int, c_int)
+_libMI.statistics.argtypes = (POINTER(c_double), c_int, c_int, POINTER(c_double), POINTER(c_double), c_int)
 _libMI.statistics.restype = returnStats
 
 def normalise(vec):
@@ -56,9 +56,11 @@ def total_mutual_information(data, binNo=None):
     return out
 
 
-def statistics (data: np.array):
+def statistics (data: np.array, estim: np.array, actual: np.array):
     numPairs, numSurrogatesPU = data.shape
-    ret = _libMI.statistics(data.ctypes.data_as(POINTER(c_double)), c_int(numPairs), c_int(numSurrogatesPU-1))
+    bins = len(estim)
+    tmp = _libMI.statistics(data.ctypes.data_as(POINTER(c_double)), c_int(numPairs), c_int(numSurrogatesPU-1), estim.ctypes.data_as(POINTER(c_double)), actual.ctypes.data_as(POINTER(c_double)), c_int(bins))
+    return {"global"+f[0]:getattr(tmp, f[0]) for f in tmp._fields_}
 
 
 def surrogate(x, multivariate=True):
