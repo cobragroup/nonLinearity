@@ -63,17 +63,44 @@ void total_mutual_information(double *data, int times, int regions, int binNo, d
         std::vector<int>pxy(binNo*binNo,0);
         for (auto k=0; k<times; k++) pxy[idx[i][k]*binNo+idx[j][k]]++;
         auto te=ex[i]+ex[j]-entropy(pxy, times);
-        // std::cerr << te <<"["<<index<<"]"<<std::endl;
         (out)[index] = te;
         index++;
     }
-    // std::cerr << "fatto!" <<std::endl;
     return;
 }
 
+double quantile (std::vector<double>::iterator it, int len, double quant){
+    double v = quant*len;
+    int j = v-1;
+    double fact = v-j-1;
+    return it[j]*(1-fact)+it[j+1]*fact;
+}
 
 returnStats statistics (double *data, int numPairs, int numSurrogates){
-    double correctedperc95pointer = (numSurrogates * (0.95) - 0.5) / (numSurrogates - 1);
-    double correctedperc99pointer = (numSurrogates * (0.99) - 0.5) / (numSurrogates - 1);
-    double correctedperc05pointer = (numSurrogates * (0.05) - 0.5) / (numSurrogates - 1);
+    returnStats result;
+    double correctedpercpointer[3], fractions[3] = {0.05,0.95,0.99};
+    double ratioContr[3]={0}, ratio[3]={0};
+    for (auto i=0; i<3; i++) correctedpercpointer[i] = (numSurrogates * fractions[i] - 0.5) / (numSurrogates - 1);
+
+    for (auto j=0; j<numPairs; j++){
+        auto firstPos = data+j*(numSurrogates+1);
+        std::vector<double> perc(firstPos, firstPos+numSurrogates+1);
+        std::sort(perc.begin()+1, perc.end());
+        for (auto i=0; i<3; i++){
+            auto quant = quantile(perc.begin()+1, numSurrogates, correctedpercpointer[i]);
+            ratio[i]+=perc[0]>quant;
+        }
+        for (auto i=1; i<3; i++){
+            double small = std::distance(perc.begin()+1, std::upper_bound(perc.begin()+1, perc.end(), perc[0]));
+            ratioContr[i]+=(1-small/(numSurrogates+1))<(1-fractions[i]+1e-6);
+        }
+    }
+    std::cerr << std::endl;
+    result.ratio05= 1 - ratio[0]/numPairs;
+    result.ratio95= ratio[1]/numPairs;
+    result.ratio99= ratio[2]/numPairs;
+    result.ratio95control=ratioContr[1]/numPairs;
+    result.ratio99control=ratioContr[2]/numPairs;
+
+    return result;
 }
