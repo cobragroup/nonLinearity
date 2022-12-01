@@ -34,7 +34,7 @@ def bin_loc(vec, bins):
 #%%
 def single_iter(data):
     means, corre, nsamples, nbins = data
-    points = np.random.multivariate_normal(means, corre, nsamples).T
+    points = np.random.multivariate_normal(means, corre, nsamples).T.copy()
 
     return pair_mutual_information(points[0], points[1], nbins)
 

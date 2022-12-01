@@ -28,26 +28,24 @@ double entropy (std::vector<int> vec, double norm){
     }
     return entr;
 }
-
-double pair_mutual_information(double *x, double* y, int size, int binNo){
-    std::vector<double> xbins=bin_loc(x, size, binNo), ybins=bin_loc(y, size, binNo);
+double pair_mutual_information(double *x, double* y, int times, int binNo){
+    std::vector<double> xbins=bin_loc(x, times, binNo), ybins=bin_loc(y, times, binNo);
     std::vector<int> px(binNo,0), py(binNo,0), pxy(binNo*binNo,0);
-
-    for (auto i=0; i<size; i++){
+    
+    for (auto i=0; i<times; i++){
         auto idx = std::distance(xbins.begin(), std::upper_bound(xbins.begin(), xbins.end()-1, x[i]))-1;
         auto idy = std::distance(ybins.begin(), std::upper_bound(ybins.begin(), ybins.end()-1, y[i]))-1;
         px[idx]++;
         py[idy]++;
         pxy[idy*binNo+idx]++;
     }
-    auto entr = entropy(px, size)+entropy(py, size)-entropy(pxy, size);
+    auto entr = entropy(px, times)+entropy(py, times)-entropy(pxy, times);
     return entr;
 }
 
 void total_mutual_information(double *data, int times, int regions, int binNo, double *out){
     std::vector<std::vector<int>> idx;
     std::vector<double> ex(regions,0);
-    std::vector<double> mi;
     for (auto i=0; i<regions; i++){
         idx.push_back(std::vector<int>(times,0));
         std::vector<int>px(binNo,0);
