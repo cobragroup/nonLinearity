@@ -1,4 +1,4 @@
-from support import single_iter
+from support import single_iter, correct_vector
 import os
 from tqdm import tqdm
 import matplotlib.pyplot as plt
@@ -28,7 +28,8 @@ class Corrector:
         self.workers = workers
         self.newco = None
         self.trueval = None
-        self.correctI = np.vectorize(self._correctI)
+        self.old_correctI = np.vectorize(self._correctI)
+        self.correctI = lambda x: correct_vector(x, self.newco, self.trueval)
 
     def compute_correction(self):
         """Computes the correction lookup table or loads the cached values."""

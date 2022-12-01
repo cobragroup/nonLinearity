@@ -16,6 +16,8 @@ _libMI.total_mutual_information.argtypes = (POINTER(c_double), c_int, c_int, c_i
 _libMI.total_mutual_information.restype = None
 _libMI.statistics.argtypes = (POINTER(c_double), c_int, c_int, POINTER(c_double), POINTER(c_double), c_int)
 _libMI.statistics.restype = returnStats
+_libMI.correct_vector.argtypes = (POINTER(c_double), c_int, POINTER(c_double), POINTER(c_double), c_int, POINTER(c_double))
+_libMI.correct_vector.restype = None
 
 def normalise(vec):
     rv = norm(0, 1)
@@ -53,6 +55,14 @@ def total_mutual_information(data, binNo=None):
     totPairs = int(regions*(regions-1)/2)
     out = np.zeros(totPairs, dtype=np.float64)
     _libMI.total_mutual_information(data.ctypes.data_as(POINTER(c_double)), c_int(times), c_int(regions), c_int(binNo), out.ctypes.data_as(POINTER(c_double)))
+    return out
+
+
+def correct_vector(data: np.array, estim: np.array, actual: np.array):
+    bins = len(estim)
+    totPairs = data.size
+    out = np.zeros_like(data, dtype=np.float64)
+    _libMI.correct_vector(data.ctypes.data_as(POINTER(c_double)), c_int(totPairs), estim.ctypes.data_as(POINTER(c_double)), actual.ctypes.data_as(POINTER(c_double)), c_int(bins), out.ctypes.data_as(POINTER(c_double)))
     return out
 
 
