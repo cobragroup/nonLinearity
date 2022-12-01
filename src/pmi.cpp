@@ -117,3 +117,9 @@ returnStats statistics (double *data, int numPairs, int numSurrogates, double *e
 
     return result;
 }
+
+
+void correct_vector (double *data, int numPairs, double *estim, double *actual, int bins, double *out){
+    std::vector<double> estimated(estim, estim+bins);
+    for (auto i=0; i<numPairs; i++)out[i]=actual[find_correct(estimated, data[i])];
+}
