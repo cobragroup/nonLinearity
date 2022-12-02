@@ -16,5 +16,6 @@ extern "C"
     double pair_mutual_information(double *x, double* y, int size, int binNo);
     void total_mutual_information(double *data, int times, int regions, int binNo, double *out);
     returnStats statistics (double *data, int numPairs, int numSurrogates, double *estim, double *actual, int bins);
-    void correct_vector (double *data, int numPairs, double *estim, double *actual, int bins, double *out);
+    void correct_vector (double *data, int numValues, double *estim, double *actual, int bins, double *out);
+    void quantile_vector (double *data, int numPairs, int numSurrogates, double quant, double *out);
 }

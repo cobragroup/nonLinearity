@@ -119,7 +119,19 @@ returnStats statistics (double *data, int numPairs, int numSurrogates, double *e
 }
 
 
-void correct_vector (double *data, int numPairs, double *estim, double *actual, int bins, double *out){
+void correct_vector (double *data, int numValues, double *estim, double *actual, int bins, double *out){
     std::vector<double> estimated(estim, estim+bins);
-    for (auto i=0; i<numPairs; i++)out[i]=actual[find_correct(estimated, data[i])];
+    for (auto i=0; i<numValues; i++)out[i]=actual[find_correct(estimated, data[i])];
+}
+
+
+void quantile_vector (double *data, int numPairs, int numSurrogates, double quant, double *out){
+    double correctedpercpointer= (numSurrogates * quant - 0.5) / (numSurrogates - 1);
+    for (auto j=0; j<numPairs; j++){
+        auto firstPos = data+j*(numSurrogates+1);
+        std::vector<double> perc(firstPos, firstPos+numSurrogates+1);
+        std::sort(perc.begin()+1, perc.end());
+        auto quant = quantile(perc.begin()+1, numSurrogates, correctedpercpointer);
+        out[j]=quant;
+    }
 }

@@ -18,6 +18,8 @@ _libMI.statistics.argtypes = (POINTER(c_double), c_int, c_int, POINTER(c_double)
 _libMI.statistics.restype = returnStats
 _libMI.correct_vector.argtypes = (POINTER(c_double), c_int, POINTER(c_double), POINTER(c_double), c_int, POINTER(c_double))
 _libMI.correct_vector.restype = None
+_libMI.quantile_vector.argtypes = (POINTER(c_double), c_int, c_int, c_double, POINTER(c_double))
+_libMI.quantile_vector.restype = None
 
 def normalise(vec):
     rv = norm(0, 1)
@@ -71,6 +73,14 @@ def statistics (data: np.array, estim: np.array, actual: np.array):
     bins = len(estim)
     tmp = _libMI.statistics(data.ctypes.data_as(POINTER(c_double)), c_int(numPairs), c_int(numSurrogatesPU-1), estim.ctypes.data_as(POINTER(c_double)), actual.ctypes.data_as(POINTER(c_double)), c_int(bins))
     return {"global"+f[0]:getattr(tmp, f[0]) for f in tmp._fields_}
+    return out
+
+
+def quantile_vector (data: np.array, quantile: float):
+    numPairs, numSurrogatesPU = data.shape
+    out = np.zeros(numPairs)
+    _libMI.quantile_vector(data.ctypes.data_as(POINTER(c_double)), c_int(numPairs), c_int(numSurrogatesPU-1), c_double(quantile), out.ctypes.data_as(POINTER(c_double)))
+    return out
 
 
 def surrogate(x, multivariate=True):

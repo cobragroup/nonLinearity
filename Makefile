@@ -61,13 +61,13 @@ all:  $(ODIR)/libpmi.so
 
 $(ODIR)/libpmi.so: $(ODIR)/pmi.o
 
-	g++ -Wall -Ofast -Wextra -shared -Wl,-soname,pmi.so -o $@ $^ $(INCLUDES)
+	g++ $(CFLAGS) -shared -Wl,-soname,pmi.so -o $@ $^ $(INCLUDES)
 
 	@echo $@ shared object created
 
 $(ODIR)/pmi.o: pmi.cpp
 
-	g++ -c -fPIC -Wall -Ofast -Wextra $^ -o $@ $(INCLUDES)
+	g++ -c -fPIC $(CFLAGS) $^ -o $@ $(INCLUDES)
 
 # this is a suffix replacement rule for building .o's from .c's
 

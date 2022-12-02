@@ -13,7 +13,7 @@ import os
 path = os.path.dirname(os.path.realpath(__file__))
 sys.path.append(path)
 from corrector import Corrector
-from support import pair_mutual_information, total_mutual_information, surrogate, task_producer, statistics
+from support import quantile_vector, total_mutual_information, surrogate, task_producer, statistics
 
 
 class NonLinearEstimator:
@@ -215,20 +215,12 @@ class NonLinearEstimator:
                 self.globalStats[key].append(statTrue[key])
 
     def _smile_plot(self, patientN, corr, statsMI):
-        correctedperc01pointer = (self.Nsurrogates * (0.01) - 0.5) / (
-            self.Nsurrogates - 1
-        )
-        correctedperc99pointer = (self.Nsurrogates * (0.99) - 0.5) / (
-            self.Nsurrogates - 1
-        )
         if self.corr_statsMI is None:
             self.corr_statsMI = self.corrector.correctI(statsMI)
         mean_cont_mi_multisurr = np.mean(self.corr_statsMI[:, 1:], 1)
         # std_cont_mi_multisurr=np.std(self.corr_statsMI[:,1:],1)
-        perc99_PLOT = np.quantile(
-            self.corr_statsMI[:, 1:], correctedperc99pointer, 1)
-        perc01_PLOT = np.quantile(
-            self.corr_statsMI[:, 1:], correctedperc01pointer, 1)
+        perc99_PLOT = quantile_vector(self.corr_statsMI, 0.99)
+        perc01_PLOT = quantile_vector(self.corr_statsMI, 0.01)
 
         plt.scatter(corr, self.corr_statsMI[:, 1])
         neworder = np.argsort(corr)
