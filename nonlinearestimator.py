@@ -133,7 +133,7 @@ class NonLinearEstimator:
             shadow = surrogate(self.mat[:, :, patientN])
             statsMI_shadow = np.zeros([self.pairNum, self.Nsurrogates + 1])
             for ns, tmi in tqdm(enumerate(pool.imap(total_mutual_information, ((patient, self.nbins) for patient in task_producer(shadow[:, :], self.Nsurrogates)))), total=self.Nsurrogates + 1, desc=f"Patient {patientN} shadow", leave=False):
-                statsMI[:, ns] = tmi
+                statsMI_shadow[:, ns] = tmi
 
             # statsMI_univar = np.zeros([pairNum, self.Nsurrogates])
             # for ns, patient in tqdm(enumerate(task_producer(self.mat[:, :, patientN], self.Nsurrogates, False)), total=self.Nsurrogates+1, desc=f"Patient {patientN} univar", leave=False):
