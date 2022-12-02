@@ -215,10 +215,10 @@ class NonLinearEstimator:
 
     def _smile_plot(self, patientN, corr, statsMI):
         corr_statsMI = self.corrector.correctI(statsMI)
-        mean_cont_mi_multisurr = np.mean(self.corr_statsMI[:, 1:], 1)
-        # std_cont_mi_multisurr=np.std(self.corr_statsMI[:,1:],1)
-        perc99_PLOT = quantile_vector(self.corr_statsMI, 0.99)
-        perc01_PLOT = quantile_vector(self.corr_statsMI, 0.01)
+        mean_cont_mi_multisurr = np.mean(corr_statsMI[:, 1:], 1)
+        # std_cont_mi_multisurr=np.std(corr_statsMI[:,1:],1)
+        perc99_PLOT = quantile_vector(corr_statsMI, 0.99)
+        perc01_PLOT = quantile_vector(corr_statsMI, 0.01)
 
         plt.scatter(corr, corr_statsMI[:, 0])
         neworder = np.argsort(corr)
