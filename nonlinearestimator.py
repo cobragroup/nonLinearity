@@ -192,7 +192,6 @@ class NonLinearEstimator:
                 if globalsToBeComputed or plottingNeeded:
                     statsMI, statsMI_shadow, corr = self._single_patient_numeric(
                         patientN, pool)
-                    self.corr_statsMI = None
 
                     if globalsToBeComputed:
                         assert max(map(len, self.globalStats.values(
@@ -215,14 +214,13 @@ class NonLinearEstimator:
                 self.globalStats[key].append(statTrue[key])
 
     def _smile_plot(self, patientN, corr, statsMI):
-        if self.corr_statsMI is None:
-            self.corr_statsMI = self.corrector.correctI(statsMI)
+        corr_statsMI = self.corrector.correctI(statsMI)
         mean_cont_mi_multisurr = np.mean(self.corr_statsMI[:, 1:], 1)
         # std_cont_mi_multisurr=np.std(self.corr_statsMI[:,1:],1)
         perc99_PLOT = quantile_vector(self.corr_statsMI, 0.99)
         perc01_PLOT = quantile_vector(self.corr_statsMI, 0.01)
 
-        plt.scatter(corr, self.corr_statsMI[:, 1])
+        plt.scatter(corr, corr_statsMI[:, 0])
         neworder = np.argsort(corr)
         expected = -0.5 * np.log(1 - corr**2)
         plt.plot(corr[neworder], expected[neworder], "purple")
