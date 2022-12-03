@@ -135,11 +135,6 @@ class NonLinearEstimator:
             for ns, tmi in tqdm(enumerate(pool.imap(total_mutual_information, ((patient, self.nbins) for patient in task_producer(shadow[:, :], self.Nsurrogates)))), total=self.Nsurrogates + 1, desc=f"Patient {patientN} shadow", leave=False):
                 statsMI_shadow[:, ns] = tmi
 
-            # statsMI_univar = np.zeros([pairNum, self.Nsurrogates])
-            # for ns, patient in tqdm(enumerate(task_producer(self.mat[:, :, patientN], self.Nsurrogates, False)), total=self.Nsurrogates+1, desc=f"Patient {patientN} univar", leave=False):
-            #     statsMI_univar[:, ns] = pool.starmap(pair_mutual_information, ((
-            #         patient[:, zone1], patient[:, zone2]) for zone1 in range(self.regions) for zone2 in range(zone1+1, self.regions)))
-
             corr = np.array(
                 [
                     np.corrcoef(
@@ -155,7 +150,6 @@ class NonLinearEstimator:
                 f"{self.folderName}/patient{patientN:02}_{self.nbins}_sha",
                 statsMI_shadow,
             )
-            # np.save(f"{self.folderName}/patient{patientN:02}_{self.nbins}_uni", statsMI_univar)
             np.save(
                 f"{self.folderName}/patient{patientN:02}_{self.nbins}_cor", corr
             )
@@ -163,8 +157,6 @@ class NonLinearEstimator:
             statsMI_shadow = np.load(
                 f"{self.folderName}/patient{patientN:02}_{self.nbins}_sha.npy"
             )
-            # statsMI_univar = np.load(
-            #     f"{self.folderName}/patient{patient:02}_{self.nbins}_uni.npy")
             corr = np.load(
                 f"{self.folderName}/patient{patientN:02}_{self.nbins}_cor.npy"
             )

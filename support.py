@@ -6,7 +6,8 @@ import os
 from ctypes import c_int, cdll, POINTER, c_double, Structure
 el_path = os.path.abspath(os.path.dirname(__file__))
 _libMI = cdll.LoadLibrary(os.path.join(el_path, 'bin/libpmi.so'))
-
+warnings.simplefilter("once", lineno=94, append=True)
+warnings.simplefilter("once", category=RuntimeWarning, append=True)
 class returnStats (Structure):
     _fields_ = [("ratio95control", c_double), ("ratio99control", c_double), ("ratio05", c_double), ("ratio95", c_double), ("ratio99", c_double), ("totalMI", c_double), ("gaussMI", c_double)]
 
@@ -73,7 +74,6 @@ def statistics (data: np.array, estim: np.array, actual: np.array):
     bins = len(estim)
     tmp = _libMI.statistics(data.ctypes.data_as(POINTER(c_double)), c_int(numPairs), c_int(numSurrogatesPU-1), estim.ctypes.data_as(POINTER(c_double)), actual.ctypes.data_as(POINTER(c_double)), c_int(bins))
     return {"global"+f[0]:getattr(tmp, f[0]) for f in tmp._fields_}
-    return out
 
 
 def quantile_vector (data: np.array, quantile: float):
