@@ -20,8 +20,9 @@ class NonLinearEstimator:
     statsNames = ["globalratio95control", "globalratio99control", "globalratio05", "globalratio95", "globalratio99", "globaltotalMI",
                   "globalgaussMI", "globalratio05shadow", "globalratio95shadow", "globalratio99shadow", "globaltotalMIshadow", "globalgaussMIshadow"]
 
-    def __init__(self, configFile=None, dataset=None, nbins=None, regions=""):
+    def __init__(self, configFile=None, dataset=None, nbins=None, regions="", savenpy=False):
         config = configparser.ConfigParser()
+        self.savenpy = savenpy
         configfile = configFile if configFile is not None else os.path.join(
             path, "config.ini")
         assert os.path.isfile(configfile)
@@ -120,8 +121,9 @@ class NonLinearEstimator:
             statsMI = np.zeros([self.pairNum, self.Nsurrogates + 1])
             for ns, tmi in enumerate(pool.imap(total_mutual_information, ((patient, self.nbins) for patient in task_producer(self.mat[:, :, patientN], self.Nsurrogates)))):#tqdm(, disable=True, total=self.Nsurrogates + 1, desc=f"Patient {patientN} true", leave=False):
                 statsMI[:, ns] = tmi
-            np.save(
-                f"{self.folderName}/patient{patientN:02}_{self.nbins}", statsMI)
+            if self.savenpy:
+                np.save(
+                    f"{self.folderName}/patient{patientN:02}_{self.nbins}", statsMI)
         else:
             statsMI = np.load(
                 f"{self.folderName}/patient{patientN:02}_{self.nbins}.npy"
@@ -146,13 +148,14 @@ class NonLinearEstimator:
                 ]
             )
 
-            np.save(
-                f"{self.folderName}/patient{patientN:02}_{self.nbins}_sha",
-                statsMI_shadow,
-            )
-            np.save(
-                f"{self.folderName}/patient{patientN:02}_{self.nbins}_cor", corr
-            )
+            if self.savenpy:
+                np.save(
+                    f"{self.folderName}/patient{patientN:02}_{self.nbins}_sha",
+                    statsMI_shadow,
+                )
+                np.save(
+                    f"{self.folderName}/patient{patientN:02}_{self.nbins}_cor", corr
+                )
         else:
             statsMI_shadow = np.load(
                 f"{self.folderName}/patient{patientN:02}_{self.nbins}_sha.npy"
