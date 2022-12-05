@@ -118,7 +118,7 @@ class NonLinearEstimator:
             f"{self.folderName}/patient{patientN:02}_{self.nbins}.npy"
         ):
             statsMI = np.zeros([self.pairNum, self.Nsurrogates + 1])
-            for ns, tmi in tqdm(enumerate(pool.imap(total_mutual_information, ((patient, self.nbins) for patient in task_producer(self.mat[:, :, patientN], self.Nsurrogates)))), total=self.Nsurrogates + 1, desc=f"Patient {patientN} true", leave=False):
+            for ns, tmi in enumerate(pool.imap(total_mutual_information, ((patient, self.nbins) for patient in task_producer(self.mat[:, :, patientN], self.Nsurrogates)))):#tqdm(, disable=True, total=self.Nsurrogates + 1, desc=f"Patient {patientN} true", leave=False):
                 statsMI[:, ns] = tmi
             np.save(
                 f"{self.folderName}/patient{patientN:02}_{self.nbins}", statsMI)
@@ -132,7 +132,7 @@ class NonLinearEstimator:
         ):
             shadow = surrogate(self.mat[:, :, patientN])
             statsMI_shadow = np.zeros([self.pairNum, self.Nsurrogates + 1])
-            for ns, tmi in tqdm(enumerate(pool.imap(total_mutual_information, ((patient, self.nbins) for patient in task_producer(shadow[:, :], self.Nsurrogates)))), total=self.Nsurrogates + 1, desc=f"Patient {patientN} shadow", leave=False):
+            for ns, tmi in enumerate(pool.imap(total_mutual_information, ((patient, self.nbins) for patient in task_producer(shadow[:, :], self.Nsurrogates)))):#tqdm(, disable=True, total=self.Nsurrogates + 1, desc=f"Patient {patientN} shadow", leave=False):
                 statsMI_shadow[:, ns] = tmi
 
             corr = np.array(
