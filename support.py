@@ -1,9 +1,9 @@
 import numpy as np
 from scipy.stats import norm
-from scipy.stats import entropy
 import warnings
 import os
 from ctypes import c_int, cdll, POINTER, c_double, Structure
+from typing import Union
 el_path = os.path.abspath(os.path.dirname(__file__))
 _libMI = cdll.LoadLibrary(os.path.join(el_path, 'bin/libpmi.so'))
 warnings.simplefilter("once", lineno=94, append=True)
@@ -61,7 +61,7 @@ def total_mutual_information(data, binNo=None):
     return out
 
 
-def correct_vector(data: np.array, estim: np.array, actual: np.array):
+def correct_vector(data: np.ndarray, estim: np.ndarray, actual: np.ndarray):
     bins = len(estim)
     totPairs = data.size
     out = np.zeros_like(data, dtype=np.float64)
@@ -69,14 +69,14 @@ def correct_vector(data: np.array, estim: np.array, actual: np.array):
     return out
 
 
-def statistics (data: np.array, estim: np.array, actual: np.array):
+def statistics (data: np.ndarray, estim: np.ndarray, actual: np.ndarray):
     numPairs, numSurrogatesPU = data.shape
     bins = len(estim)
     tmp = _libMI.statistics(data.ctypes.data_as(POINTER(c_double)), c_int(numPairs), c_int(numSurrogatesPU-1), estim.ctypes.data_as(POINTER(c_double)), actual.ctypes.data_as(POINTER(c_double)), c_int(bins))
     return {"global"+f[0]:getattr(tmp, f[0]) for f in tmp._fields_}
 
 
-def quantile_vector (data: np.array, quantile: float|np.ndarray):
+def quantile_vector (data: np.ndarray, quantile: Union[float,np.ndarray]):
     if not isinstance(quantile, np.ndarray):
         if not hasattr(quantile, "__len__"):
             quantile=[quantile]
