@@ -57,7 +57,8 @@ class NonLinearEstimator:
         assert dataset is not None, "Unspecified dataset in .ini file."
         assert config.has_section(
             dataset), "The details for the specified dataset are missing in .ini file."
-        filePath = config.get(dataset, "filePath", fallback="./")
+        filePath = config.get(dataset, "filePath", fallback=None)
+        assert filePath is not None, "Missing dataset file path in .ini file."
         fileName = config.get(dataset, "fileName", fallback=None)
         self.fieldName = config.get(dataset, "fieldName", fallback=None)
         assert fileName is not None, "Missing dataset filename in .ini file."
