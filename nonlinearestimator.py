@@ -10,6 +10,7 @@ import scipy.io as sio
 from warnings import warn
 import sys
 import os
+import socket
 path = os.path.dirname(os.path.realpath(__file__))
 sys.path.append(path)
 from corrector import Corrector
@@ -40,6 +41,12 @@ class NonLinearEstimator:
         self.display = config.getboolean("global", "display", fallback=True)
         self.workers = config.getint("global", "workers", fallback=4)
         self.ouputFolder = config.get("global", "outputFolder", fallback="..")
+
+        thisHost = socket.gethostname()
+        if config.has_section(thisHost):
+            self.workers = config.getint(thisHost, "workers", fallback=self.workers)
+            self.ouputFolder = config.get(thisHost, "outputFolder", fallback=self.ouputFolder)
+
         if not os.path.isabs(self.ouputFolder):
             self.ouputFolder = os.path.join(path, self.ouputFolder)
 
