@@ -91,7 +91,7 @@ def surrogate(x, multivariate=True):
         Output:
         np.array containing the surrogate time series such that output shape matches input shape."""
     if x.shape[1] > x.shape[0]:
-        warnings.warn("It looks you have more series than timepoints, or maybe you should transpose the input.")
+        warnings.warn("It looks you have more series than timepoints, or maybe you should transpose the input.", RuntimeWarning)
     if multivariate:
         rpha = np.exp(2 * np.pi * np.random.rand(int(x.shape[0] / 2 + 1)) * 1.0j)
         fftX1 = np.fft.rfft(x, axis=0).T * rpha
