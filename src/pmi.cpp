@@ -125,13 +125,13 @@ void correct_vector (double *data, int numValues, double *estim, double *actual,
 }
 
 
-void quantile_vector (double *data, int numPairs, int numSurrogates, double quant, double *out){
-    double correctedpercpointer= (numSurrogates * quant - 0.5) / (numSurrogates - 1);
+void quantile_vector (double *data, int numPairs, int numSurrogates, double* quant, int nquant, double *out){
+    std::vector<double> correctedpercpointer;
+    for (auto i=0; i<nquant; i++) correctedpercpointer.push_back((numSurrogates * quant[i] - 0.5) / (numSurrogates - 1));
     for (auto j=0; j<numPairs; j++){
         auto firstPos = data+j*(numSurrogates+1);
         std::vector<double> perc(firstPos, firstPos+numSurrogates+1);
         std::sort(perc.begin()+1, perc.end());
-        auto quant = quantile(perc.begin()+1, numSurrogates, correctedpercpointer);
-        out[j]=quant;
+        for (auto i=0; i<nquant; i++)out[numPairs*i+j]=quantile(perc.begin()+1, numSurrogates, correctedpercpointer[i]);
     }
 }
