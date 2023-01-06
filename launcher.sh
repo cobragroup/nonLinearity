@@ -1,13 +1,13 @@
 #! /bin/bash
 
-for i in $(cat ../list.txt) 
+for i in {1..9}
 do 
-    DIRECTORY=/home/raffaelli/eso245_cra_strin_${i}_bin9
-    echo $i
+    DIRECTORY=/mnt/DATA/NonLinearMI/source_BLP_band${i}_bin8
+    echo $i $DIRECTORY
     if [[ ! -d "$DIRECTORY" ]]
     then
         mkdir "$DIRECTORY"
-        cp /home/raffaelli/eso245_cra_strin_10_bin9/[nt]*npy "$DIRECTORY"
+        cp /mnt/DATA/NonLinearMI/source_BLP_band1_bin8/[nt]*npy "$DIRECTORY"
     fi
-    ./cli.py -r $i -d eso245_cra_strin; 
+    ./cli.py -r $i -d source_BLP -b 8; 
 done
