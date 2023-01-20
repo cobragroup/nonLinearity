@@ -47,6 +47,8 @@ def single_iter(data):
 def pair_mutual_information(x, y, binNo):
     assert len(x) == len(y), "x and y must have the same length"
     _nsamples = len(x)
+    x = np.require(x,np.float64,"FA")
+    y = np.require(y,np.float64,"FA")
     
     return _libMI.pair_mutual_information(x.ctypes.data_as(POINTER(c_double)), y.ctypes.data_as(POINTER(c_double)), c_int(_nsamples), c_int(binNo))
 
@@ -54,6 +56,7 @@ def pair_mutual_information(x, y, binNo):
 def total_mutual_information(data, binNo=None):
     if binNo is None:
         data, binNo = data
+    data = np.require(data,np.float64,"FA")
     times, regions = data.shape
     totPairs = int(regions*(regions-1)/2)
     out = np.zeros(totPairs, dtype=np.float64)
