@@ -2,12 +2,12 @@
 
 for i in {1..9}
 do 
-    DIRECTORY=/mnt/DATA/NonLinearMI/EEG_bands_band${i}_bin50
+    DIRECTORY=/mnt/DATA/NonLinearMI/iEEG_part_band${i}_bin18
     echo $i $DIRECTORY
     if [[ ! -d "$DIRECTORY" ]]
     then
         mkdir "$DIRECTORY"
-        cp /mnt/DATA/NonLinearMI/EEG_bands_band1_bin50/[nt]*npy "$DIRECTORY"
+        cp /mnt/DATA/NonLinearMI/iEEG_part_band1_bin18/[nt]*npy "$DIRECTORY"
     fi
-    ./cli.py -r $i -d EEG_bands -b 50; 
+    ./cli.py -r $i -d iEEG -b 18 -S; 
 done
