@@ -65,6 +65,7 @@ def total_mutual_information(data, binNo=None):
 
 
 def correct_vector(data: np.ndarray, estim: np.ndarray, actual: np.ndarray):
+    data = np.require(data,np.float64,"FA")
     bins = len(estim)
     totPairs = data.size
     out = np.zeros_like(data, dtype=np.float64)
