@@ -21,9 +21,10 @@ class NonLinearEstimator:
     statsNames = ["globalratio95control", "globalratio99control", "globalratio05", "globalratio95", "globalratio99", "globaltotalMI",
                   "globalgaussMI", "globalratio05shadow", "globalratio95shadow", "globalratio99shadow", "globaltotalMIshadow", "globalgaussMIshadow"]
 
-    def __init__(self, configFile=None, dataset=None, nbins=None, regions="", savenpy=False):
+    def __init__(self, configFile=None, dataset=None, nbins=None, regions="", savenpy=False, suffix="", truncateInput=None):
         config = configparser.ConfigParser()
         self.savenpy = savenpy
+        self.suffix = suffix
         configfile = configFile if configFile is not None else os.path.join(
             path, "config.ini")
         assert os.path.isfile(configfile)
@@ -44,8 +45,10 @@ class NonLinearEstimator:
 
         thisHost = socket.gethostname()
         if config.has_section(thisHost):
-            self.workers = config.getint(thisHost, "workers", fallback=self.workers)
-            self.ouputFolder = config.get(thisHost, "outputFolder", fallback=self.ouputFolder)
+            self.workers = config.getint(
+                thisHost, "workers", fallback=self.workers)
+            self.ouputFolder = config.get(
+                thisHost, "outputFolder", fallback=self.ouputFolder)
 
         if not os.path.isabs(self.ouputFolder):
             self.ouputFolder = os.path.join(path, self.ouputFolder)
@@ -70,11 +73,12 @@ class NonLinearEstimator:
         hc_end = config.getint(dataset, "healthy_control_end", fallback=None)
         hc_end = hc_end if hc_end else None
         self.hc_slice = slice(hc_start, hc_end)
+        self.truncate_slice = slice(None, truncateInput)
 
         self.fileName = os.path.join(filePath, fileName)
         assert os.path.isfile(
             self.fileName), f"Missing dataset at specified path: {self.fileName}."
-        folderName = os.path.splitext(fileName)[0] + f"_bin{self.nbins}"
+        folderName = os.path.splitext(fileName)[0] + self.suffix + f"_bin{self.nbins}"
         self.folderName = os.path.join(self.ouputFolder, folderName)
         if not os.path.isdir(self.folderName):
             os.mkdir(self.folderName)
@@ -88,7 +92,7 @@ class NonLinearEstimator:
             self.fieldName = [k for k in tmp_mat.keys() if k not in [
                 '__header__', '__version__', '__globals__']][0]
 
-        self.mat = tmp_mat[self.fieldName][:, :, self.hc_slice]
+        self.mat = tmp_mat[self.fieldName][self.truncate_slice, :, self.hc_slice]
         duration, self.regions, self.sessions = self.mat.shape
         with open(os.path.join(self.folderName, "shape.json"), "w") as fp:
             json.dump(self.mat.shape, fp)
@@ -127,7 +131,8 @@ class NonLinearEstimator:
             f"{self.folderName}/patient{patientN:02}_{self.nbins}.npy"
         ):
             statsMI = np.zeros([self.pairNum, self.Nsurrogates + 1])
-            for ns, tmi in enumerate(pool.imap(total_mutual_information, ((patient, self.nbins) for patient in task_producer(self.mat[:, :, patientN], self.Nsurrogates)))):#tqdm(, disable=True, total=self.Nsurrogates + 1, desc=f"Patient {patientN} true", leave=False):
+            # tqdm(, disable=True, total=self.Nsurrogates + 1, desc=f"Patient {patientN} true", leave=False):
+            for ns, tmi in enumerate(pool.imap(total_mutual_information, ((patient, self.nbins) for patient in task_producer(self.mat[:, :, patientN], self.Nsurrogates)))):
                 statsMI[:, ns] = tmi
             if self.savenpy:
                 np.save(
@@ -142,7 +147,8 @@ class NonLinearEstimator:
         ):
             shadow = surrogate(self.mat[:, :, patientN])
             statsMI_shadow = np.zeros([self.pairNum, self.Nsurrogates + 1])
-            for ns, tmi in enumerate(pool.imap(total_mutual_information, ((patient, self.nbins) for patient in task_producer(shadow[:, :], self.Nsurrogates)))):#tqdm(, disable=True, total=self.Nsurrogates + 1, desc=f"Patient {patientN} shadow", leave=False):
+            # tqdm(, disable=True, total=self.Nsurrogates + 1, desc=f"Patient {patientN} shadow", leave=False):
+            for ns, tmi in enumerate(pool.imap(total_mutual_information, ((patient, self.nbins) for patient in task_producer(shadow[:, :], self.Nsurrogates)))):
                 statsMI_shadow[:, ns] = tmi
 
             corr = np.array(
@@ -208,8 +214,10 @@ class NonLinearEstimator:
                     json.dump(self.globalStats, fp)
 
     def _statistics(self, statsMI, statsMI_shadow):
-        statTrue = statistics(statsMI, self.corrector.newco, self.corrector.trueval)
-        statShadow = statistics(statsMI_shadow, self.corrector.newco, self.corrector.trueval)
+        statTrue = statistics(
+            statsMI, self.corrector.newco, self.corrector.trueval)
+        statShadow = statistics(
+            statsMI_shadow, self.corrector.newco, self.corrector.trueval)
         for key in self.statsNames:
             if "shadow" in key:
                 self.globalStats[key].append(statShadow[key[:-len("shadow")]])
@@ -225,7 +233,8 @@ class NonLinearEstimator:
         )
         corr_statsMI = self.corrector.correctI(statsMI)
         mean_cont_mi_multisurr = np.mean(corr_statsMI[:, 1:], 1)
-        perc01_PLOT, perc99_PLOT = np.quantile(corr_statsMI[:, 1:], [correctedperc01pointer, correctedperc99pointer], 1)
+        perc01_PLOT, perc99_PLOT = np.quantile(
+            corr_statsMI[:, 1:], [correctedperc01pointer, correctedperc99pointer], 1)
 
         plt.scatter(corr, corr_statsMI[:, 0])
         neworder = np.argsort(corr)

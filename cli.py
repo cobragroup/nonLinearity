@@ -14,6 +14,10 @@ parser.add_argument('-b', type=int, metavar='num of bins', dest="bins",
                         help="Number of bins for estimation, overrides the corresponding option in the config file.")
 parser.add_argument('-r', type=str, metavar='num of regions', dest="regions", default="",
                         help="Number of regions in the atlas, useful for some fileName formats defined in the ini file as filename%%(num of regions)s.mat.")
+parser.add_argument('-x', type=str, metavar='suffix', dest="suffix", default="",
+                        help="Suffix to output folder name.")
+parser.add_argument('-t', type=int, metavar='input len', dest="truncate",
+                        help="Number of samples to consider.")
 parser.add_argument('-S', dest="savenpy", action="store_true",
                         help="If to save the results per region and surrogate. Be carefull, may take a lot of disk.")
 
@@ -22,5 +26,5 @@ parser.add_argument('-S', dest="savenpy", action="store_true",
 if __name__ == "__main__":
     args = parser.parse_args()
 
-    estimator = NonLinearEstimator(args.configFile, args.dataset, args.bins, args.regions, args.savenpy)
+    estimator = NonLinearEstimator(args.configFile, args.dataset, args.bins, args.regions, args.savenpy, args.suffix, args.truncate)
     estimator.run()
