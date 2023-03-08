@@ -106,7 +106,6 @@ returnStats statistics (double *data, int numPairs, int numSurrogates, double *e
         meanData+=actual[find_correct(estimated, perc[0])];
         for (auto i=1; i<numSurrogates+1; i++)meanSurr+=actual[find_correct(estimated, perc[i])];
     }
-    std::cerr << std::endl;
     result.ratio05= 1 - ratio[0]/numPairs;
     result.ratio95= ratio[1]/numPairs;
     result.ratio99= ratio[2]/numPairs;
