@@ -4,7 +4,9 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 import multiprocessing as mp
 import numpy as np
-
+import glob
+import json
+import shutil
 
 class Corrector:
     def __init__(
@@ -17,6 +19,7 @@ class Corrector:
         workers=4,
         smoothed=False,
         display=False,
+        retrieve=True
     ):
         self.steps = steps
         self.folderName = folderName
@@ -30,6 +33,24 @@ class Corrector:
         self.trueval = None
         self.old_correctI = np.vectorize(self._correctI)
         self.correctI = lambda x: correct_vector(x, self.newco, self.trueval)
+        if retrieve:
+            self.__retrieve()
+    
+    def __retrieve (self):
+        if os.path.isfile(f"{self.folderName}/newco_{self.nbins}.npy"):
+            return
+        
+        for fold in glob.glob(os.path.abspath(os.path.join("/mnt/DATA/NonLinearMI/ID09_Sz6raw_band1_bin9", os.pardir, f"*bin{self.nbins}"))):
+            if os.path.isfile(os.path.join(fold,"shape.json")):
+                with open(os.path.join(fold,"shape.json")) as fp:
+                    shape = json.load(fp)
+                    if shape[0] == self.nsamples:
+                        if os.path.isfile(os.path.join(fold,f"newco_{self.nbins}.npy")):
+                            print("Retrieving correction from: ", fold)
+                            shutil.copy2(os.path.join(fold,f"newco_{self.nbins}.npy"), self.folderName)
+                            if os.path.isfile(os.path.join(fold,f"trueval_{self.nbins}.npy")):
+                                shutil.copy2(os.path.join(fold,f"trueval_{self.nbins}.npy"), self.folderName)
+                            break
 
     def compute_correction(self):
         """Computes the correction lookup table or loads the cached values."""
