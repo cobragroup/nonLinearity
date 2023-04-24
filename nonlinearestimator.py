@@ -21,9 +21,10 @@ class NonLinearEstimator:
     statsNames = ["globalratio95control", "globalratio99control", "globalratio05", "globalratio95", "globalratio99", "globaltotalMI",
                   "globalgaussMI", "globalratio05shadow", "globalratio95shadow", "globalratio99shadow", "globaltotalMIshadow", "globalgaussMIshadow"]
 
-    def __init__(self, configFile=None, dataset=None, nbins=None, regions="", savenpy=False, suffix="", truncateInput=None):
+    def __init__(self, configFile=None, dataset=None, nbins=None, regions="", savenpy=False, suffix="", truncateInput=None, retrieve=True):
         config = configparser.ConfigParser()
         self.savenpy = savenpy
+        self.retrieve = retrieve
         self.suffix = suffix
         configfile = configFile if configFile is not None else os.path.join(
             path, "config.ini")
@@ -121,6 +122,7 @@ class NonLinearEstimator:
             self.nbins,
             self.workers,
             display=self.display,
+            retrieve=self.retrieve
         )
         self.corrector.compute_correction()
 
