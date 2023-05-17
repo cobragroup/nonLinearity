@@ -153,29 +153,32 @@ class NonLinearEstimator:
             for ns, tmi in enumerate(pool.imap(total_mutual_information, ((patient, self.nbins) for patient in task_producer(shadow[:, :], self.Nsurrogates)))):
                 statsMI_shadow[:, ns] = tmi
 
-            corr = np.array(
-                [
-                    np.corrcoef(
-                        self.mat[:, zone1, patientN], self.mat[:,
-                                                               zone2, patientN]
-                    )[1, 0]
-                    for zone1 in range(self.regions)
-                    for zone2 in range(zone1 + 1, self.regions)
-                ]
-            )
-
             if self.savenpy:
                 np.save(
                     f"{self.folderName}/patient{patientN:02}_{self.nbins}_sha",
                     statsMI_shadow,
                 )
-                np.save(
-                    f"{self.folderName}/patient{patientN:02}_{self.nbins}_cor", corr
-                )
         else:
             statsMI_shadow = np.load(
                 f"{self.folderName}/patient{patientN:02}_{self.nbins}_sha.npy"
             )
+
+        if not os.path.isfile(f"{self.folderName}/patient{patientN:02}_{self.nbins}_cor"):
+            for norm in task_producer(self.mat[:, :, patientN], 0):
+                corr = np.array(
+                    [
+                        np.corrcoef(
+                            norm[:, zone1], norm[:, zone2]
+                        )[1, 0]
+                        for zone1 in range(self.regions)
+                        for zone2 in range(zone1 + 1, self.regions)
+                    ]
+                )
+                break
+            np.save(
+                f"{self.folderName}/patient{patientN:02}_{self.nbins}_cor", corr
+            )
+        else:
             corr = np.load(
                 f"{self.folderName}/patient{patientN:02}_{self.nbins}_cor.npy"
             )
