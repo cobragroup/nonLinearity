@@ -163,21 +163,20 @@ class NonLinearEstimator:
                 f"{self.folderName}/patient{patientN:02}_{self.nbins}_sha.npy"
             )
 
-        if not os.path.isfile(f"{self.folderName}/patient{patientN:02}_{self.nbins}_cor"):
+        if not os.path.isfile(f"{self.folderName}/patient{patientN:02}_{self.nbins}_cor.npy"):
             for norm in task_producer(self.mat[:, :, patientN], 0):
-                corr = np.array(
-                    [
-                        np.corrcoef(
-                            norm[:, zone1], norm[:, zone2]
-                        )[1, 0]
-                        for zone1 in range(self.regions)
-                        for zone2 in range(zone1 + 1, self.regions)
-                    ]
-                )
+                corr = np.zeros(int(self.regions*(self.regions-1)/2))
+                corrMatrix = np.corrcoef(norm, rowvar=False)
+                n=0
+                for zone1 in range(self.regions):
+                    for zone2 in range(zone1 + 1, self.regions):
+                        corr[n]=corrMatrix[zone1,zone2]
+                        n+=1
                 break
-            np.save(
-                f"{self.folderName}/patient{patientN:02}_{self.nbins}_cor", corr
-            )
+            if self.savenpy:
+                np.save(
+                    f"{self.folderName}/patient{patientN:02}_{self.nbins}_cor", corr
+                )
         else:
             corr = np.load(
                 f"{self.folderName}/patient{patientN:02}_{self.nbins}_cor.npy"
