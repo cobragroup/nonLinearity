@@ -9,6 +9,7 @@ struct returnStats
     double ratio99; 
     double totalMI; 
     double gaussMI; 
+    double sigmaGaussMI;
 };
 
 extern "C"

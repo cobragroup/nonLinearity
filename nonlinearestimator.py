@@ -19,7 +19,7 @@ from support import quantile_vector, total_mutual_information, surrogate, task_p
 
 class NonLinearEstimator:
     statsNames = ["globalratio95control", "globalratio99control", "globalratio05", "globalratio95", "globalratio99", "globaltotalMI",
-                  "globalgaussMI", "globalratio05shadow", "globalratio95shadow", "globalratio99shadow", "globaltotalMIshadow", "globalgaussMIshadow"]
+                  "globalgaussMI", "globalsigmaGaussMI", "globalratio05shadow", "globalratio95shadow", "globalratio99shadow", "globaltotalMIshadow", "globalgaussMIshadow", "globalsigmaGaussMIshadow"]
 
     def __init__(self, configFile=None, dataset=None, nbins=None, regions="", savenpy=False, suffix="", truncateInput=None, retrieve=True):
         config = configparser.ConfigParser()

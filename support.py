@@ -9,7 +9,7 @@ _libMI = cdll.LoadLibrary(os.path.join(el_path, 'bin/libpmi.so'))
 warnings.simplefilter("once", lineno=94, append=True)
 warnings.simplefilter("once", category=RuntimeWarning, append=True)
 class returnStats (Structure):
-    _fields_ = [("ratio95control", c_double), ("ratio99control", c_double), ("ratio05", c_double), ("ratio95", c_double), ("ratio99", c_double), ("totalMI", c_double), ("gaussMI", c_double)]
+    _fields_ = [("ratio95control", c_double), ("ratio99control", c_double), ("ratio05", c_double), ("ratio95", c_double), ("ratio99", c_double), ("totalMI", c_double), ("gaussMI", c_double), ("sigmaGaussMI", c_double)]
 
 _libMI.pair_mutual_information.argtypes = (POINTER(c_double), POINTER(c_double), c_int, c_int)
 _libMI.pair_mutual_information.restype = c_double
