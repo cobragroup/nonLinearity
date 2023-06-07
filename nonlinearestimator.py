@@ -219,9 +219,9 @@ class NonLinearEstimator:
 
     def _statistics(self, statsMI, statsMI_shadow):
         statTrue = statistics(
-            statsMI, self.corrector.newco, self.corrector.trueval)
+            statsMI, self.corrector.newco, self.corrector.trueval, self.workers)
         statShadow = statistics(
-            statsMI_shadow, self.corrector.newco, self.corrector.trueval)
+            statsMI_shadow, self.corrector.newco, self.corrector.trueval, self.workers)
         for key in self.statsNames:
             if "shadow" in key:
                 self.globalStats[key].append(statShadow[key[:-len("shadow")]])

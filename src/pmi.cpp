@@ -1,8 +1,69 @@
 #include "lib/pmi.hpp"
 #include <vector>
+#include <array>
 #include <algorithm>
 #include <cmath>
 #include <iostream>
+#include <mutex>
+#include <condition_variable>
+#include <future>
+#include <string>
+#include <queue>
+
+class Semaphore
+{
+    std::mutex m;
+    std::condition_variable cv;
+    int count;
+
+public:
+    Semaphore(int n) : count{n} {}
+    void notify()
+    {
+        std::unique_lock<std::mutex> l(m);
+        ++count;
+        cv.notify_one();
+    }
+    void wait()
+    {
+        std::unique_lock<std::mutex> l(m);
+        cv.wait(l, [this]
+                { return count != 0; });
+        --count;
+    }
+};
+class Critical_section
+{
+    Semaphore &s;
+
+public:
+    Critical_section(Semaphore &ss) : s{ss} { s.wait(); }
+    ~Critical_section() { s.notify(); }
+};
+
+
+ class list_manager
+    {
+    private:
+        std::mutex lock;                                          /**< A \c mutex protecting from simultaneous accesses to the queue. */
+        int now=-1, tot_pairs=-1;
+    public:
+        list_manager() = default;
+        list_manager(list_manager &&) = default;
+        void init(int tot){tot_pairs=tot; now=0;};
+        int pop(){
+            std::unique_lock<std::mutex> l(lock);
+            if (now == tot_pairs) return -1;
+            return now++;
+        }
+        int remaining() {
+            std::unique_lock<std::mutex> l(lock);
+            return tot_pairs - now;
+        }
+    };
+
+    std::atomic_int threadCount=0;
+    list_manager tasks;
 
 std::vector<double> bin_loc (double* x, int size, int binNo){
     std::vector<double> vec(x, x + size);
@@ -74,7 +135,7 @@ double quantile (std::vector<double>::iterator it, int len, double quant){
     return it[j]*(1-fact)+it[j+1]*fact;
 }
 
-size_t find_correct (std::vector<double>& vec, double val){
+size_t find_correct (const std::vector<double>& vec, const double val) {
     auto pos=std::upper_bound(vec.begin(), vec.end()-1, val);
     if (pos == vec.begin()) return 0;
     size_t ind = std::distance(vec.begin(), pos);
@@ -82,34 +143,29 @@ size_t find_correct (std::vector<double>& vec, double val){
     return ind-1;
 }
 
-returnStats statistics (double *data, int numPairs, int numSurrogates, double *estim, double *actual, int bins){
-    returnStats result;
-    double correctedpercpointer[3], fractions[3] = {0.05,0.95,0.99};
-    double ratioContr[3]={0}, ratio[3]={0};
-    double meanData = 0, meanSurr = 0, sigma2 = 0;
-    std::vector<double> estimated(estim, estim+bins), deriv(numPairs, 0);
-    std::vector<std::vector<double>> tmp_toSigma(numPairs, std::vector<double>(numSurrogates));
-    
-    for (auto i=0; i<3; i++) correctedpercpointer[i] = (numSurrogates * fractions[i] - 0.5) / (numSurrogates - 1);
-
-    for (auto j=0; j<numPairs; j++){
+void series_stats (double* data, int numSurrogates, const double correctedpercpointer[3], const double fractions[3], std::vector<double> &to_meanData, std::vector<double> &to_meanSurr, std::vector<double> &to_sigma2, std::array<std::vector<double>,3> &to_ratio, std::array<std::vector<double>,3> &to_ratioContr, const std::vector<double> &estimated, double* actual, std::vector<double> &deriv, std::vector<std::vector<double>> &tmp_toSigma){
+    threadCount++;
+    std::cerr<<"BEGIN"<<std::endl;
+    int j=tasks.pop();
+    while (j >= 0)
+    {
+        std::cerr<<"computing "+std::to_string(j)<<std::endl;
         auto firstPos = data+j*(numSurrogates+1);
         double tmp_meanSurr = 0, tmp_sigma2=0, tmp_sigma;
         std::vector<double> perc(firstPos, firstPos+numSurrogates+1);
         std::sort(perc.begin()+1, perc.end());
         for (auto i=0; i<3; i++){
             auto quant = quantile(perc.begin()+1, numSurrogates, correctedpercpointer[i]);
-            ratio[i]+=perc[0]>quant;
+            to_ratio[i][j]=perc[0]>quant;
         }
         for (auto i=1; i<3; i++){
             double small = std::distance(perc.begin()+1, std::upper_bound(perc.begin()+1, perc.end(), perc[0]));
-            ratioContr[i]+=(1-small/(numSurrogates+1))<(1-fractions[i]+1e-6);
+            to_ratioContr[i][j]=(1-small/(numSurrogates+1))<(1-fractions[i]+1e-6);
         }
-        meanData+=actual[find_correct(estimated, perc[0])];
-        
+        to_meanData[j] = actual[find_correct(estimated, perc[0])];
         for (auto i=1; i<numSurrogates+1; i++) tmp_meanSurr+=perc[i];
         tmp_meanSurr/=numSurrogates;
-        meanSurr += actual[find_correct(estimated, tmp_meanSurr)];
+        to_meanSurr[j] = actual[find_correct(estimated, tmp_meanSurr)];
 
         for (auto i=1; i<numSurrogates+1; i++) tmp_toSigma[j][i-1] = (perc[i]-tmp_meanSurr);
         for (auto i=0; i<numSurrogates; i++) tmp_sigma2 += tmp_toSigma[j][i]*tmp_toSigma[j][i];
@@ -119,11 +175,56 @@ returnStats statistics (double *data, int numPairs, int numSurrogates, double *e
         size_t upper = find_correct(estimated, tmp_meanSurr+tmp_sigma);
         if (lower != upper){
             deriv[j]= (actual[upper]-actual[lower])/(estimated[upper]-estimated[lower]);
-            sigma2 += tmp_sigma2 * deriv[j] * deriv[j];
+            to_sigma2[j] = tmp_sigma2 * deriv[j] * deriv[j];
         }
     }
+    threadCount--;
+    std::cerr<<"DONE"<<std::endl;
+}
+
+returnStats statistics (double *data, int numPairs, int numSurrogates, double *estim, double *actual, int bins, int numThreads){
+    std::cerr<<"I HAVE NUMPAIRS: "+std::to_string(numPairs)<<std::endl;
+    std::cerr<<"I HAVE numThreads: "+std::to_string(numThreads)<<std::endl;
+    returnStats result;
+    double correctedpercpointer[3], fractions[3] = {0.05,0.95,0.99};
+    double ratioContr[3]={0}, ratio[3]={0};
+    double meanData = 0, meanSurr = 0, sigma2 = 0;
+    std::vector<double> to_meanData(numPairs, 0), to_meanSurr(numPairs, 0), to_sigma2(numPairs, 0);
+    std::array<std::vector<double>, 3> to_ratioContr={std::vector<double>(numPairs, 0),std::vector<double>(numPairs, 0),std::vector<double>(numPairs, 0)}, to_ratio={std::vector<double>(numPairs, 0),std::vector<double>(numPairs, 0),std::vector<double>(numPairs, 0)};
+    std::vector<double> estimated(estim, estim+bins), deriv(numPairs, 0);
+    std::vector<std::vector<double>> tmp_toSigma(numPairs, std::vector<double>(numSurrogates));
+    for (auto i=0; i<3; i++) correctedpercpointer[i] = (numSurrogates * fractions[i] - 0.5) / (numSurrogates - 1);
+    std::vector<std::thread> workers;
+    tasks.init(numPairs);
+    std::cerr<<"Launching"+std::to_string(numPairs)<<std::endl;
+    for (auto j=0; j<numThreads; j++)
+    {
+        workers.push_back(std::thread(&series_stats, data, numSurrogates, correctedpercpointer, fractions, std::ref(to_meanData), std::ref(to_meanSurr), std::ref(to_sigma2), std::ref(to_ratio), std::ref(to_ratioContr), std::ref(estimated), actual, std::ref(deriv), std::ref(tmp_toSigma)));
+        std::cerr<<"started "+std::to_string(j)<<std::endl;
+        // tasks.emplace_back(std::async(std::launch::async, ));
+    }
+    std::cerr<<"Going"<<std::endl;
+    while (tasks.remaining() || numThreads){
+        std::this_thread::sleep_for(std::chrono::milliseconds(250));
+        std::cerr<<"Missing "+std::to_string(tasks.remaining())<<std::endl;
+    }
+    // std::for_each(workers.begin(),workers.end(),[](std::thread& t){t.join();});
+    for (auto &t : workers)
+        if (t.joinable())
+            t.join();
+    std::cerr<<"Passed"<<std::endl;
+    // for (auto &&task : tasks)
+    // {
+    //     task.wait();
+    // }
 
     for (auto j=0; j<numPairs; j++){
+        meanData += to_meanData[j];
+        meanSurr += to_meanSurr[j];
+        sigma2 += to_sigma2[j];
+        for (auto i=0; i<3; i++) ratio[i] += to_ratio[i][j];
+        for (auto i=1; i<3; i++) ratioContr[i] += to_ratioContr[i][j];
+
         for (auto k=j+1; k<numPairs; k++){
             double cov = 0;//, s1=0, s2=0;
             for (auto i=0; i<numSurrogates; i++) {
