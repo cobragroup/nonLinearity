@@ -234,7 +234,7 @@ returnStats statistics (double *data, int numPairs, int numSurrogates, double *e
     result.ratio95control=ratioContr[1]/numPairs;
     result.ratio99control=ratioContr[2]/numPairs;
     result.totalMI=meanData/numPairs;
-    result.gaussMI=meanSurr/numPairs/numSurrogates;
+    result.gaussMI=meanSurr/numPairs;
     result.sigmaGaussMI=sqrt(sigma2)/numSurrogates/numPairs;
     // std::cerr<<"12"<<std::endl;
 
