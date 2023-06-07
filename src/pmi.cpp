@@ -8,7 +8,9 @@
 #include <future>
 #include <string>
 
- class list_manager
+
+#define FULL_SIGMA_LIMIT 400
+class list_manager
     {
     private:
         std::mutex lock;                                          /**< A \c mutex protecting from simultaneous accesses to the queue. */
@@ -155,14 +157,23 @@ void second_loop (int numSurrogates, int numPairs, std::vector<double> &to_sigma
     {
         // std::cerr<<"7.x."+std::to_string(j)+".1 "<<std::endl;
         double sigma2=0;
-        for (auto k=j+1; k<numPairs; k++) {
+        if (numPairs<FULL_SIGMA_LIMIT){
+            for (auto k=j+1; k<numPairs; k++) {
+                double cov = 0;
+                // std::cerr<<"7.x."+std::to_string(j)+".1."+std::to_string(k)+".1 "<<std::endl;
+                for (auto i=0; i<numSurrogates; i++) {
+                    cov += tmp_toSigma[j][i]*tmp_toSigma[k][i];
+                    }
+                // std::cerr<<"7.x."+std::to_string(j)+".1."+std::to_string(k)+".2 "<<std::endl;
+                sigma2 += 2 * cov * deriv[j] * deriv[k];
+            }
+        }
+        else if (j+1<numPairs){
             double cov = 0;
-            // std::cerr<<"7.x."+std::to_string(j)+".1."+std::to_string(k)+".1 "<<std::endl;
             for (auto i=0; i<numSurrogates; i++) {
-                cov += tmp_toSigma[j][i]*tmp_toSigma[k][i];
+                cov += tmp_toSigma[j][i]*tmp_toSigma[j+1][i];
                 }
-            // std::cerr<<"7.x."+std::to_string(j)+".1."+std::to_string(k)+".2 "<<std::endl;
-            sigma2 += 2 * cov * deriv[j] * deriv[k];
+            sigma2 += (numPairs - j - 1) * 2 * cov * deriv[j] * deriv[j+1];
         }
         // std::cerr<<"7.x."+std::to_string(j)+".2 "<<std::endl;
         to_sigma2[j] += sigma2;
@@ -212,6 +223,7 @@ returnStats statistics (double *data, int numPairs, int numSurrogates, double *e
     // std::cerr<<"8 "<<std::endl;
     while (tasks.remaining() || threadCount){
         std::this_thread::sleep_for(std::chrono::milliseconds(250));
+        // std::cerr<<"\r"+std::to_string(tasks.remaining())+" "+std::to_string(threadCount)<<std::flush;
     }
     // std::cerr<<"9"<<std::endl;
     for (auto &t : workers)
