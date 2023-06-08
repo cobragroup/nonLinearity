@@ -9,7 +9,7 @@
 #include <string>
 
 
-#define FULL_SIGMA_LIMIT 400
+#define FULL_SIGMA_LIMIT 20000 // corresponds to ~200 series in the original data
 class list_manager
     {
     private:
