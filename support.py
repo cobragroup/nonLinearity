@@ -15,7 +15,7 @@ _libMI.pair_mutual_information.argtypes = (POINTER(c_double), POINTER(c_double),
 _libMI.pair_mutual_information.restype = c_double
 _libMI.total_mutual_information.argtypes = (POINTER(c_double), c_int, c_int, c_int, POINTER(c_double))
 _libMI.total_mutual_information.restype = None
-_libMI.statistics.argtypes = (POINTER(c_double), c_int, c_int, POINTER(c_double), POINTER(c_double), c_int)
+_libMI.statistics.argtypes = (POINTER(c_double), c_int, c_int, POINTER(c_double), POINTER(c_double), c_int, c_int)
 _libMI.statistics.restype = returnStats
 _libMI.correct_vector.argtypes = (POINTER(c_double), c_int, POINTER(c_double), POINTER(c_double), c_int, POINTER(c_double))
 _libMI.correct_vector.restype = None
@@ -73,10 +73,10 @@ def correct_vector(data: np.ndarray, estim: np.ndarray, actual: np.ndarray):
     return out
 
 
-def statistics (data: np.ndarray, estim: np.ndarray, actual: np.ndarray):
+def statistics (data: np.ndarray, estim: np.ndarray, actual: np.ndarray, numThreads: int):
     numPairs, numSurrogatesPU = data.shape
     bins = len(estim)
-    tmp = _libMI.statistics(data.ctypes.data_as(POINTER(c_double)), c_int(numPairs), c_int(numSurrogatesPU-1), estim.ctypes.data_as(POINTER(c_double)), actual.ctypes.data_as(POINTER(c_double)), c_int(bins))
+    tmp = _libMI.statistics(data.ctypes.data_as(POINTER(c_double)), c_int(numPairs), c_int(numSurrogatesPU-1), estim.ctypes.data_as(POINTER(c_double)), actual.ctypes.data_as(POINTER(c_double)), c_int(bins), c_int(numThreads))
     return {"global"+f[0]:getattr(tmp, f[0]) for f in tmp._fields_}
 
 
