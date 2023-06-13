@@ -37,10 +37,10 @@ class Corrector:
             self.__retrieve()
     
     def __retrieve (self):
-        if os.path.isfile(f"{self.folderName}/newco_{self.nbins}.npy"):
+        if os.path.isfile(os.path.join(self.folderName,f"newco_{self.nbins}.npy")):
             return
         
-        for fold in glob.glob(os.path.abspath(os.path.join("/mnt/DATA/NonLinearMI/ID09_Sz6raw_band1_bin9", os.pardir, f"*bin{self.nbins}"))):
+        for fold in glob.glob(os.path.abspath(os.path.join(self.folderName, os.pardir, f"*bin{self.nbins}"))):
             if os.path.isfile(os.path.join(fold,"shape.json")):
                 with open(os.path.join(fold,"shape.json")) as fp:
                     shape = json.load(fp)
