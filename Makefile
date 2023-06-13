@@ -26,7 +26,7 @@ HEADERS = lib
 
 #   option, something like (this will link in libmylib.so and libm.so:
 
-LIBS = -lm #-lpthread -lboost_filesystem -lboost_system
+LIBS = -lm -lpthread #-lboost_filesystem -lboost_system
 
 VPATH=bin:src
 
@@ -61,7 +61,7 @@ all:  $(ODIR)/libpmi.so
 
 $(ODIR)/libpmi.so: $(ODIR)/pmi.o
 
-	g++ $(CFLAGS) -shared -Wl,-soname,pmi.so -o $@ $^ $(INCLUDES)
+	g++ $(CFLAGS) -shared -Wl,-soname,pmi.so -o $@ $^ $(INCLUDES) ${LIBS}
 
 	@echo $@ shared object created
 

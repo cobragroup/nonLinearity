@@ -4,8 +4,8 @@ import argparse
 from nonlinearestimator import NonLinearEstimator
 
 parser = argparse.ArgumentParser(
-    prog="MIENLIC", description="Mutual Information Estimation for Non-Linear Information Contribution.", epilog="COBRA, Giulio Tani Raffaelli, 2022")
-parser.add_argument('--version', action='version', version='%(prog)s 0.1')
+    prog="MIENLIC", description="Mutual Information Estimation for Non-Linear Information Contribution.", epilog="COBRA, Giulio Tani Raffaelli, 2023")
+parser.add_argument('--version', action='version', version='%(prog)s 0.2')
 parser.add_argument('-c', type=str, metavar='config', dest="configFile",
                     help="Path to an alternate config file.")
 parser.add_argument('-d', type=str, metavar='dataset', dest="dataset",
