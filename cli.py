@@ -22,11 +22,13 @@ parser.add_argument('-S', dest="savenpy", action="store_true",
                     help="If to save the results per region and surrogate. Be careful, may take a lot of disk.")
 parser.add_argument('-N', dest="retrieve", action="store_false",
                     help="If to avoid retrieving precomputed correction data. Be careful, computing correction may take much longer than computation itself.")
+parser.add_argument('-J', dest="jitter", action="store_true",
+                    help="If to add a tiny amount of jitter to data.")
 
 
 if __name__ == "__main__":
     args = parser.parse_args()
 
     estimator = NonLinearEstimator(
-        args.configFile, args.dataset, args.bins, args.regions, args.savenpy, args.suffix, args.truncate)
+        args.configFile, args.dataset, args.bins, args.regions, args.savenpy, args.suffix, args.truncate, args.retrieve, args.jitter)
     estimator.run()
