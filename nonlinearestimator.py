@@ -21,11 +21,12 @@ class NonLinearEstimator:
     statsNames = ["globalratio95control", "globalratio99control", "globalratio05", "globalratio95", "globalratio99", "globaltotalMI",
                   "globalgaussMI", "globalsigmaGaussMI", "globalratio05shadow", "globalratio95shadow", "globalratio99shadow", "globaltotalMIshadow", "globalgaussMIshadow", "globalsigmaGaussMIshadow"]
 
-    def __init__(self, configFile=None, dataset=None, nbins=None, regions="", savenpy=False, suffix="", truncateInput=None, retrieve=True):
+    def __init__(self, configFile=None, dataset=None, nbins=None, regions="", savenpy=False, suffix="", truncateInput=None, retrieve=True, jitter=False):
         config = configparser.ConfigParser()
         self.savenpy = savenpy
         self.retrieve = retrieve
         self.suffix = suffix
+        self.jitter = jitter
         configfile = configFile if configFile is not None else os.path.join(
             path, "config.ini")
         assert os.path.isfile(configfile)
@@ -110,6 +111,10 @@ class NonLinearEstimator:
                 f"Acquisition duration ({duration}) is different from the set number of samples for correction ({self.nsamples})."
             )
         self.pairNum = int((self.regions * (self.regions - 1)) / 2)
+
+        if self.jitter:
+            spa = np.sort(np.diff(np.sort(self.mat[:,0,0])))[0]
+            self.mat += np.random.normal(0, spa*1e-3, self.mat.shape)
 
     def run(self):
         self.load_data()
