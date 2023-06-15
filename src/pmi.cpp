@@ -163,15 +163,15 @@ void series_stats(double *data, int numSurrogates, const double correctedpercpoi
             to_ratioContr[i][j] = (1 - small / (numSurrogates + 1)) < (1 - fractions[i] + 1e-6);
         }
         to_meanData[j] = actual[find_correct(estimated, perc[0])];
-        for (auto i = 1; i < numSurrogates + 1; i++)
+        for (auto i = 0; i < numSurrogates; i++)
         {
-            tmp_correct[i] = actual[find_correct(estimated, perc[i])];
+            tmp_correct[i] = actual[find_correct(estimated, perc[i + 1])];
             to_meanSurr[j] += tmp_correct[i];
         }
         to_meanSurr[j] /= numSurrogates;
 
-        for (auto i = 1; i < numSurrogates + 1; i++)
-            tmp_toSigma[j][i - 1] = (tmp_correct[i] - to_meanSurr[j]);
+        for (auto i = 0; i < numSurrogates; i++)
+            tmp_toSigma[j][i] = (tmp_correct[i] - to_meanSurr[j]);
         for (auto i = 0; i < numSurrogates; i++)
             to_sigma2[j] += tmp_toSigma[j][i] * tmp_toSigma[j][i];
         j = tasks.pop();
