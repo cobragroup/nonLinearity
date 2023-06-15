@@ -150,8 +150,7 @@ void series_stats(double *data, int numSurrogates, const double correctedpercpoi
     while (j >= 0)
     {
         auto firstPos = data + j * (numSurrogates + 1);
-        double tmp_meanSurr = 0, tmp_sigma2 = 0, tmp_sigma;
-        std::vector<double> perc(firstPos, firstPos + numSurrogates + 1);
+        std::vector<double> tmp_correct(numSurrogates, 0), perc(firstPos, firstPos + numSurrogates + 1);
         std::sort(perc.begin() + 1, perc.end());
         for (auto i = 0; i < 3; i++)
         {
@@ -165,23 +164,16 @@ void series_stats(double *data, int numSurrogates, const double correctedpercpoi
         }
         to_meanData[j] = actual[find_correct(estimated, perc[0])];
         for (auto i = 1; i < numSurrogates + 1; i++)
-            tmp_meanSurr += perc[i];
-        tmp_meanSurr /= numSurrogates;
-        to_meanSurr[j] = actual[find_correct(estimated, tmp_meanSurr)];
+        {
+            tmp_correct[i] = actual[find_correct(estimated, perc[i])];
+            to_meanSurr[j] += tmp_correct[i];
+        }
+        to_meanSurr[j] /= numSurrogates;
 
         for (auto i = 1; i < numSurrogates + 1; i++)
-            tmp_toSigma[j][i - 1] = (perc[i] - tmp_meanSurr);
+            tmp_toSigma[j][i - 1] = (tmp_correct[i] - to_meanSurr[j]);
         for (auto i = 0; i < numSurrogates; i++)
-            tmp_sigma2 += tmp_toSigma[j][i] * tmp_toSigma[j][i];
-        tmp_sigma = sqrt(tmp_sigma2) / numSurrogates;
-
-        size_t lower = find_correct(estimated, std::max(0., tmp_meanSurr - tmp_sigma));
-        size_t upper = find_correct(estimated, tmp_meanSurr + tmp_sigma);
-        if (lower != upper)
-        {
-            deriv[j] = (actual[upper] - actual[lower]) / (estimated[upper] - estimated[lower]);
-            to_sigma2[j] = tmp_sigma2 * deriv[j] * deriv[j];
-        }
+            to_sigma2[j] += tmp_toSigma[j][i] * tmp_toSigma[j][i];
         j = tasks.pop();
     }
     threadCount--;
