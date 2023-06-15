@@ -143,7 +143,7 @@ size_t find_correct(const std::vector<double> &vec, const double val)
     return ind - 1;
 }
 
-void series_stats(double *data, int numSurrogates, const double correctedpercpointer[3], const double fractions[3], std::vector<double> &to_meanData, std::vector<double> &to_meanSurr, std::vector<double> &to_sigma2, std::array<std::vector<double>, 3> &to_ratio, std::array<std::vector<double>, 3> &to_ratioContr, const std::vector<double> &estimated, double *actual, std::vector<double> &deriv, std::vector<std::vector<double>> &tmp_toSigma)
+void series_stats(double *data, int numSurrogates, const double correctedpercpointer[3], const double fractions[3], std::vector<double> &to_meanData, std::vector<double> &to_meanSurr, std::vector<double> &to_sigma2, std::array<std::vector<double>, 3> &to_ratio, std::array<std::vector<double>, 3> &to_ratioContr, const std::vector<double> &estimated, double *actual, std::vector<std::vector<double>> &tmp_toSigma)
 {
     threadCount++;
     int j = tasks.pop();
@@ -179,7 +179,7 @@ void series_stats(double *data, int numSurrogates, const double correctedpercpoi
     threadCount--;
 }
 
-void second_loop(int numSurrogates, int numPairs, std::vector<double> &to_sigma2, std::vector<std::vector<double>> &tmp_toSigma, std::vector<double> &deriv)
+void second_loop(int numSurrogates, int numPairs, std::vector<double> &to_sigma2, std::vector<std::vector<double>> &tmp_toSigma)
 {
     threadCount++;
     int j = tasks.pop();
@@ -207,7 +207,7 @@ void second_loop(int numSurrogates, int numPairs, std::vector<double> &to_sigma2
 #ifdef DEBUG
                 std::cerr << "7.x." + std::to_string(j) + ".1." + std::to_string(k) + ".2 " << std::endl;
 #endif
-                sigma2 += 2 * cov * deriv[j] * deriv[k];
+                sigma2 += 2 * cov;
             }
         }
         else if (j + 1 < numPairs)
@@ -217,7 +217,7 @@ void second_loop(int numSurrogates, int numPairs, std::vector<double> &to_sigma2
             {
                 cov += tmp_toSigma[j][i] * tmp_toSigma[j + 1][i];
             }
-            sigma2 += (numPairs - j - 1) * 2 * cov * deriv[j] * deriv[j + 1];
+            sigma2 += (numPairs - j - 1) * 2 * cov;
         }
 #ifdef DEBUG
         std::cerr << "7.x." + std::to_string(j) + ".2 " << std::endl;
@@ -242,7 +242,7 @@ returnStats statistics(double *data, int numPairs, int numSurrogates, double *es
 #endif
     std::vector<double> to_meanData(numPairs, 0), to_meanSurr(numPairs, 0), to_sigma2(numPairs, 0);
     std::array<std::vector<double>, 3> to_ratioContr = {std::vector<double>(numPairs, 0), std::vector<double>(numPairs, 0), std::vector<double>(numPairs, 0)}, to_ratio = {std::vector<double>(numPairs, 0), std::vector<double>(numPairs, 0), std::vector<double>(numPairs, 0)};
-    std::vector<double> estimated(estim, estim + bins), deriv(numPairs, 0);
+    std::vector<double> estimated(estim, estim + bins);
     std::vector<std::vector<double>> tmp_toSigma(numPairs, std::vector<double>(numSurrogates));
 #ifdef DEBUG
     std::cerr << "2" << std::endl;
@@ -256,7 +256,7 @@ returnStats statistics(double *data, int numPairs, int numSurrogates, double *es
 #endif
     for (auto j = 0; j < numThreads; j++)
     {
-        workers.push_back(std::thread(&series_stats, data, numSurrogates, correctedpercpointer, fractions, std::ref(to_meanData), std::ref(to_meanSurr), std::ref(to_sigma2), std::ref(to_ratio), std::ref(to_ratioContr), std::ref(estimated), actual, std::ref(deriv), std::ref(tmp_toSigma)));
+        workers.push_back(std::thread(&series_stats, data, numSurrogates, correctedpercpointer, fractions, std::ref(to_meanData), std::ref(to_meanSurr), std::ref(to_sigma2), std::ref(to_ratio), std::ref(to_ratioContr), std::ref(estimated), actual, std::ref(tmp_toSigma)));
     }
 #ifdef DEBUG
     std::cerr << "4" << std::endl;
@@ -285,7 +285,7 @@ returnStats statistics(double *data, int numPairs, int numSurrogates, double *es
 #ifdef DEBUG
         std::cerr << "7." + std::to_string(j) + " " << std::endl;
 #endif
-        workers.push_back(std::thread(&second_loop, numSurrogates, numPairs, std::ref(to_sigma2), std::ref(tmp_toSigma), std::ref(deriv)));
+        workers.push_back(std::thread(&second_loop, numSurrogates, numPairs, std::ref(to_sigma2), std::ref(tmp_toSigma)));
     }
 #ifdef DEBUG
     std::cerr << "8 " << std::endl;
