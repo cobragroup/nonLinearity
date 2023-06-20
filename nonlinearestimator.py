@@ -15,67 +15,113 @@ path = os.path.dirname(os.path.realpath(__file__))
 sys.path.append(path)
 from corrector import Corrector
 from support import quantile_vector, total_mutual_information, surrogate, task_producer, statistics
-
+import warnings
+from innovationOrthogonalization import innOr
 
 class NonLinearEstimator:
     statsNames = ["globalratio95control", "globalratio99control", "globalratio05", "globalratio95", "globalratio99", "globaltotalMI",
                   "globalgaussMI", "globalsigmaGaussMI", "globalratio05shadow", "globalratio95shadow", "globalratio99shadow", "globaltotalMIshadow", "globalgaussMIshadow", "globalsigmaGaussMIshadow"]
 
-    def __init__(self, configFile=None, dataset=None, nbins=None, regions="", savenpy=False, suffix="", truncateInput=None, retrieve=True, jitter=False):
-        config = configparser.ConfigParser()
+    def __init__(self, configFile=None, nbins=None, Nsurrogates=None, cache=None, savenpy=False, suffix="", retrieve=True, jitter=False, ortho=False, dataset=None, regions="", truncateInput=None):
         self.savenpy = savenpy
-        self.retrieve = retrieve
         self.suffix = suffix
-        self.jitter = jitter
-        configfile = configFile if configFile is not None else os.path.join(
-            path, "config.ini")
-        assert os.path.isfile(configfile)
-        config.read(configfile)
+        self.retrieve = retrieve
+        self.dataset = dataset
+        self.regions = regions
+        self.truncateInput = truncateInput
 
-        config['DEFAULT']['regions'] = regions
+        self.__read_config(configFile)
+
+        if ortho is not None:
+            self.ortho = ortho
+        if cache is not None:
+            self.cacheDir = cache
+            if self.cacheDir is not None and not os.path.isdir(self.cacheDir) and os.path.isdir(os.path.join(path, self.cacheDir)):
+                self.cacheDir = os.path.join(path, self.cacheDir)
+        if nbins is not None:
+            self.nbins = nbins
+        if Nsurrogates is not None:
+            self.Nsurrogates = Nsurrogates
+        if jitter is not None:
+            self.jitter = self.__adjust_jitter (jitter)
+             
+
         self.steps = config.getint("correction", "steps", fallback=200)
-        self.iters = config.getint("correction", "iters", fallback=1000)
+        self.iters = config.getint("correction", "iters", fallback=10000)
         self.nsamples = config.getint("correction", "nsamples", fallback=0)
 
-        if nbins is None:
-            self.nbins = config.getint("global", "nbins", fallback=8)
-        else:
-            self.nbins = nbins
-        self.display = config.getboolean("global", "display", fallback=True)
-        self.workers = config.getint("global", "workers", fallback=4)
-        self.ouputFolder = config.get("global", "outputFolder", fallback="..")
 
-        thisHost = socket.gethostname()
-        if config.has_section(thisHost):
-            self.workers = config.getint(
-                thisHost, "workers", fallback=self.workers)
-            self.ouputFolder = config.get(
-                thisHost, "outputFolder", fallback=self.ouputFolder)
+    def __read_config (self, configFile):
+        configfile = configFile if configFile is not None else os.path.join(
+            path, "config.ini")
+        try:
+            self.config = configparser.ConfigParser()
+            self.config.read(configfile)
+        
+            self.ortho = self.config.getboolean("global", "orthogonalise", fallback=False)
+            self.jitter = self.config.get("global", "jitter", fallback="0.")
+            self.display = self.config.getboolean("global", "display", fallback=True)
+            self.workers = self.config.getint("global", "workers", fallback=4)
+            self.ouputFolder = self.config.get("global", "outputFolder", fallback="..")
+            self.cacheDir = self.config.getint("correction", "cacheDir", fallback=None)
+            self.nbins = self.config.getint("global", "nbins", fallback=8)
+            self.Nsurrogates = self.config.getint("global", "Nsurrogates", fallback=99)
 
-        if not os.path.isabs(self.ouputFolder):
-            self.ouputFolder = os.path.join(path, self.ouputFolder)
+            thisHost = socket.gethostname()
+            if self.config.has_section(thisHost):
+                self.workers = self.config.getint(
+                    thisHost, "workers", fallback=self.workers)
+                self.ouputFolder = self.config.get(
+                    thisHost, "outputFolder", fallback=self.ouputFolder)
+                self.cacheDir = self.config.get(thisHost, "cacheDir", fallback=self.cacheDir)
 
-        self.Nsurrogates = config.getint(
-            "estimate", "Nsurrogates", fallback=99)
+            if self.cacheDir is not None and not os.path.isdir(self.cacheDir) and os.path.isdir(os.path.join(path, self.cacheDir)):
+                self.cacheDir = os.path.join(path, self.cacheDir)
+            if not os.path.isabs(self.ouputFolder):
+                self.ouputFolder = os.path.join(path, self.ouputFolder)
+        except Exception as e:
+            warnings.warn("Unable to read config file. "+e.args[0])
+            self.config = None
+            self.ortho = None
+            self.jitter = None
+            self.display = None
+            self.workers = None
+            self.ouputFolder = None
+            self.cacheDir = None
+            self.nbins = None
+
+    def __read_config_dataset (self, regions=None, truncateInput=None, dataset=None, **kwargs):
+        if dataset is not None:
+            self.dataset = dataset
+        if regions is not None:
+            self.regions = regions
+        if truncateInput is not None:
+            self.truncateInput = truncateInput
+        assert self.config is not None, "When not passing data directly, a valid config.ini file is necessary."
+        self.config['DEFAULT']['regions'] = self.regions
+
         if dataset is None:
-            dataset = config.get("global", "dataset", fallback=None)
+            dataset = self.config.get("global", "dataset", fallback=None)
         assert dataset is not None, "Unspecified dataset in .ini file."
-        assert config.has_section(
+        assert self.config.has_section(
             dataset), "The details for the specified dataset are missing in .ini file."
-        filePath = config.get(dataset, "filePath", fallback=None)
+        
+        filePath = self.config.get(dataset, "filePath", fallback=None)
         assert filePath is not None, "Missing dataset file path in .ini file."
-        fileName = config.get(dataset, "fileName", fallback=None)
-        self.fieldName = config.get(dataset, "fieldName", fallback=None)
+        
+        fileName = self.config.get(dataset, "fileName", fallback=None)
         assert fileName is not None, "Missing dataset filename in .ini file."
+        
+        self.fieldName = self.config.get(dataset, "fieldName", fallback=None)
         if self.fieldName is None:
             warn("Missing dataset fieldname in .ini file. Trying with euristics.")
-        hc_start = config.getint(
+        
+        hc_start = self.config.getint(
             dataset, "healthy_control_start", fallback=None)
         hc_start = hc_start if hc_start else None
-        hc_end = config.getint(dataset, "healthy_control_end", fallback=None)
+        hc_end = self.config.getint(dataset, "healthy_control_end", fallback=None)
         hc_end = hc_end if hc_end else None
         self.hc_slice = slice(hc_start, hc_end)
-        self.truncate_slice = slice(None, truncateInput)
 
         self.fileName = os.path.join(filePath, fileName)
         assert os.path.isfile(
@@ -88,13 +134,48 @@ class NonLinearEstimator:
             f"Using: {os.path.abspath(self.fileName)} and {os.path.abspath(self.folderName)}"
         )
 
-    def load_data(self):
-        tmp_mat = sio.loadmat(self.fileName)
-        if self.fieldName is None:
-            self.fieldName = [k for k in tmp_mat.keys() if k not in [
-                '__header__', '__version__', '__globals__']][0]
+    def __adjust_jitter (self, jitter):
+        if isinstance(jitter, str):
+            try:
+                jitter = float(jitter)
+            except:
+                jitter = bool(jitter)
+        if isinstance(jitter, bool):
+            if jitter:
+                jitter = 1e-3
+        else:
+            if np.isclose(jitter, 0):
+                jitter = False
+        return jitter 
 
-        self.mat = tmp_mat[self.fieldName][self.truncate_slice, :, self.hc_slice]
+    def load_data(self, data=None, jitter=None, ortho=None, **kwargs):
+        if ortho is not None:
+            self.ortho = ortho
+        if jitter is not None:
+            self.jitter = self.__adjust_jitter (jitter)
+        if data is None:
+            self.__read_config_dataset(**kwargs)
+            if self.fieldName is None:
+                tmp_mat = sio.loadmat(self.fileName)
+                self.fieldName = [k for k in tmp_mat.keys() if k not in [
+                    '__header__', '__version__', '__globals__']][0]
+                tmp_mat = tmp_mat[self.fieldName]
+            else:
+                tmp_mat = sio.loadmat(self.fileName)[self.fieldName]
+            truncate_slice = slice(None, self.truncateInput)
+            tmp_mat = tmp_mat[truncate_slice, :, self.hc_slice]
+        else:
+            self.fileName = None
+            tmp_mat = data
+            
+        if self.ortho:
+            try:
+                self.mat = innOr(data, **kwargs)
+            except np.linalg.LinAlgError as e:
+                raise RuntimeError(*e.args)    
+        if self.jitter:
+            spa = np.sort(np.diff(np.sort(self.mat[:,0,0])))[0]
+            self.mat += np.random.normal(0, spa*1e-3, self.mat.shape)
         duration, self.regions, self.sessions = self.mat.shape
         with open(os.path.join(self.folderName, "shape.json"), "w") as fp:
             json.dump(self.mat.shape, fp)
@@ -112,12 +193,9 @@ class NonLinearEstimator:
             )
         self.pairNum = int((self.regions * (self.regions - 1)) / 2)
 
-        if self.jitter:
-            spa = np.sort(np.diff(np.sort(self.mat[:,0,0])))[0]
-            self.mat += np.random.normal(0, spa*1e-3, self.mat.shape)
 
-    def run(self):
-        self.load_data()
+    def run(self, data=None, savenpy=False, suffix="", retrieve=True, **kwargs):
+        self.load_data(data=data, **kwargs)
 
         self.corrector = Corrector(
             self.steps,
