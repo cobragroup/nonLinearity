@@ -7,28 +7,59 @@ import numpy as np
 import glob
 import json
 import shutil
+import configparser
 
 class Corrector:
     def __init__(
         self,
-        steps,
-        folderName,
-        iters,
-        nsamples,
         nbins,
-        workers=4,
+        steps = None,
+        iters = None,
+        nsamples = None,
+        folderName = None,
+        cacheDir = None,
+        workers=1,
         smoothed=False,
         display=False,
-        retrieve=True
+        retrieve=True,
+        config = None,
+        **kwargs
     ):
-        self.steps = steps
-        self.folderName = folderName
-        self.iters = iters
-        self.nsamples = nsamples
         self.nbins = nbins
+             
+        if config is not None:
+            if isinstance(config, str) and os.path.isfile(config):
+                try:
+                    self.config = configparser.ConfigParser()
+                    self.config.read(config)
+                except:
+                    self.config = None
+            elif isinstance(config, configparser.ConfigParser):
+                self.config = config
+            else:
+                self.config = None
+        else:
+            self.config = None
+
+        if self.config is not None:
+            self.steps = config.getint("correction", "steps", fallback=200)
+            self.iters = config.getint("correction", "iters", fallback=10000)
+            self.nsamples = config.getint("correction", "nsamples", fallback=0)
+        
+        if steps is not None:
+            self.steps = steps
+        if iters is not None:
+            self.iters = iters
+        if nsamples is not None:
+            self.nsamples = nsamples
+
+        self.folderName = folderName
+        self.cacheDir = cacheDir
+
         self.smoothed = smoothed
         self.display = display
         self.workers = workers
+
         self.newco = None
         self.trueval = None
         self.old_correctI = np.vectorize(self._correctI)
@@ -37,7 +68,7 @@ class Corrector:
             self.__retrieve()
     
     def __retrieve (self):
-        if os.path.isfile(os.path.join(self.folderName,f"newco_{self.nbins}.npy")):
+        if os.path.isfile(os.path.join(self.folderName,f"newco_{self.nbins}.npy")) or os.path.isfile(os.path.join(self.cacheDir,f"newco_{self.nbins}_{self.nsamples}.npy")):
             return
         
         for fold in glob.glob(os.path.abspath(os.path.join(self.folderName, os.pardir, f"*bin{self.nbins}"))):
@@ -54,6 +85,7 @@ class Corrector:
 
     def compute_correction(self):
         """Computes the correction lookup table or loads the cached values."""
+        / cache e salvataggio   
         incre = 1 / self.steps
         correction = np.zeros(self.steps)
         self.trueval = np.zeros(self.steps)

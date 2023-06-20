@@ -73,7 +73,8 @@ def correct_vector(data: np.ndarray, estim: np.ndarray, actual: np.ndarray):
     return out
 
 
-def statistics (data: np.ndarray, estim: np.ndarray, actual: np.ndarray, numThreads: int):
+def statistics (data: np.ndarray, estim: np.ndarray, actual: np.ndarray, numThreads: int, extended_stats:bool):
+    / continua da qui
     numPairs, numSurrogatesPU = data.shape
     bins = len(estim)
     tmp = _libMI.statistics(data.ctypes.data_as(POINTER(c_double)), c_int(numPairs), c_int(numSurrogatesPU-1), estim.ctypes.data_as(POINTER(c_double)), actual.ctypes.data_as(POINTER(c_double)), c_int(bins), c_int(numThreads))

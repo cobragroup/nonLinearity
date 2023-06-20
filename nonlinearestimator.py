@@ -19,10 +19,9 @@ import warnings
 from innovationOrthogonalization import innOr
 
 class NonLinearEstimator:
-    statsNames = ["globalratio95control", "globalratio99control", "globalratio05", "globalratio95", "globalratio99", "globaltotalMI",
-                  "globalgaussMI", "globalsigmaGaussMI", "globalratio05shadow", "globalratio95shadow", "globalratio99shadow", "globaltotalMIshadow", "globalgaussMIshadow", "globalsigmaGaussMIshadow"]
+    statsNames = ["globaltotalMI", "globalgaussMI", "globalsigmaGaussMI", "globalratio95control", "globalratio99control", "globalratio05", "globalratio95", "globalratio99"]
 
-    def __init__(self, configFile=None, nbins=None, Nsurrogates=None, cache=None, savenpy=False, suffix="", retrieve=True, jitter=False, ortho=False, dataset=None, regions="", truncateInput=None):
+    def __init__(self, configFile=None, nbins=None, Nsurrogates=None, cache=None, savenpy=False, suffix="", retrieve=True, jitter=False, ortho=False, dataset=None, regions="", truncateInput=None, workers=None):
         self.savenpy = savenpy
         self.suffix = suffix
         self.retrieve = retrieve
@@ -42,14 +41,16 @@ class NonLinearEstimator:
             self.nbins = nbins
         if Nsurrogates is not None:
             self.Nsurrogates = Nsurrogates
+        if workers is not None:
+            self.workers = workers
         if jitter is not None:
             self.jitter = self.__adjust_jitter (jitter)
-             
 
-        self.steps = config.getint("correction", "steps", fallback=200)
-        self.iters = config.getint("correction", "iters", fallback=10000)
-        self.nsamples = config.getint("correction", "nsamples", fallback=0)
-
+        assert self.nbins is not None, "Number of bins undefined, can't create the NonLinearEstimator"
+        assert self.Nsurrogates is not None, "Number of surrogates undefined, can't create the NonLinearEstimator"
+        if self.workers is None:
+            self.workers=1
+        / aggiungi la finta pool
 
     def __read_config (self, configFile):
         configfile = configFile if configFile is not None else os.path.join(
@@ -78,7 +79,7 @@ class NonLinearEstimator:
             if self.cacheDir is not None and not os.path.isdir(self.cacheDir) and os.path.isdir(os.path.join(path, self.cacheDir)):
                 self.cacheDir = os.path.join(path, self.cacheDir)
             if not os.path.isabs(self.ouputFolder):
-                self.ouputFolder = os.path.join(path, self.ouputFolder)
+                self.ouputFolder = os.path.abspath(os.path.join(path, self.ouputFolder))
         except Exception as e:
             warnings.warn("Unable to read config file. "+e.args[0])
             self.config = None
@@ -126,13 +127,7 @@ class NonLinearEstimator:
         self.fileName = os.path.join(filePath, fileName)
         assert os.path.isfile(
             self.fileName), f"Missing dataset at specified path: {self.fileName}."
-        folderName = os.path.splitext(fileName)[0] + self.suffix + f"_bin{self.nbins}"
-        self.folderName = os.path.join(self.ouputFolder, folderName)
-        if not os.path.isdir(self.folderName):
-            os.mkdir(self.folderName)
-        print(
-            f"Using: {os.path.abspath(self.fileName)} and {os.path.abspath(self.folderName)}"
-        )
+        print(f"Using: {os.path.abspath(self.fileName)}")
 
     def __adjust_jitter (self, jitter):
         if isinstance(jitter, str):
@@ -193,25 +188,58 @@ class NonLinearEstimator:
             )
         self.pairNum = int((self.regions * (self.regions - 1)) / 2)
 
+    def __output_folder (self, suffix):
+        if suffix is not None:
+            self.suffix = suffix
 
-    def run(self, data=None, savenpy=False, suffix="", retrieve=True, **kwargs):
+        if self.fileName is not None:
+            nameParts = [os.path.splitext(os.path.split(self.fileName)[1])[0]]
+        else:
+            if isinstance(self.savenpy, bool):
+                nameParts = ["".join(map(chr, np.random.randint(65, 91, 7)))]
+            else:
+                nameParts = [str(self.savenpy)]
+        if self.suffix:
+            nameParts.append(str(self.suffix))
+        nameParts.append(f"bin{self.nbins}")
+        folderName =  "_".join(nameParts)
+        
+        if not os.path.isabs(folderName) and self.ouputFolder is not None:
+            self.folderName = os.path.abspath(os.path.join(self.ouputFolder, folderName))
+        
+        if not os.path.isdir(self.folderName):
+            os.makedirs(self.folderName)
+        print(f"Output saved in: {self.folderName}")
+        self.savenpy = True
+
+    def estimate(self, data=None, savenpy=None, suffix=None, retrieve=None, display=None, **kwargs):
         self.load_data(data=data, **kwargs)
 
+        if retrieve is not None:
+            self.retrieve = retrieve
+        if savenpy is not None:
+            self.savenpy = savenpy
+        if savenpy:
+            self.__output_folder(suffix=suffix)
+        if display is not None:
+            self.display = display
+
         self.corrector = Corrector(
-            self.steps,
-            self.folderName,
-            self.iters,
-            self.nsamples,
             self.nbins,
-            self.workers,
+            folderName=self.folderName,
+            cacheDir=self.cacheDir,
+            workers=self.workers,
             display=self.display,
-            retrieve=self.retrieve
+            retrieve=self.retrieve,
+            config=self.config,
+            **kwargs
         )
         self.corrector.compute_correction()
 
-        self.estimate()
+        return self.do_estimate(**kwargs)
 
-    def _single_patient_numeric(self, patientN, pool: mp.Pool):
+    def _single_patient_numeric(self, patientN, pool: mp.Pool, compute_shadow):
+        / gestisi bene i salvataggi o no
         if not os.path.isfile(
             f"{self.folderName}/patient{patientN:02}_{self.nbins}.npy"
         ):
@@ -227,29 +255,31 @@ class NonLinearEstimator:
                 f"{self.folderName}/patient{patientN:02}_{self.nbins}.npy"
             )
 
-        if not os.path.isfile(
-            f"{self.folderName}/patient{patientN:02}_{self.nbins}_sha.npy"
-        ):
-            shadow = surrogate(self.mat[:, :, patientN])
-            statsMI_shadow = np.zeros([self.pairNum, self.Nsurrogates + 1])
-            # tqdm(, disable=True, total=self.Nsurrogates + 1, desc=f"Patient {patientN} shadow", leave=False):
-            for ns, tmi in enumerate(pool.imap(total_mutual_information, ((patient, self.nbins) for patient in task_producer(shadow[:, :], self.Nsurrogates)))):
-                statsMI_shadow[:, ns] = tmi
-
-            if self.savenpy:
-                np.save(
-                    f"{self.folderName}/patient{patientN:02}_{self.nbins}_sha",
-                    statsMI_shadow,
-                )
-        else:
-            statsMI_shadow = np.load(
+        if compute_shadow:
+            if not os.path.isfile(
                 f"{self.folderName}/patient{patientN:02}_{self.nbins}_sha.npy"
-            )
+            ):
+                shadow = surrogate(self.mat[:, :, patientN])
+                statsMI_shadow = np.zeros([self.pairNum, self.Nsurrogates + 1])
+                # tqdm(, disable=True, total=self.Nsurrogates + 1, desc=f"Patient {patientN} shadow", leave=False):
+                for ns, tmi in enumerate(pool.imap(total_mutual_information, ((patient, self.nbins) for patient in task_producer(shadow[:, :], self.Nsurrogates)))):
+                    statsMI_shadow[:, ns] = tmi
+
+                if self.savenpy:
+                    np.save(
+                        f"{self.folderName}/patient{patientN:02}_{self.nbins}_sha",
+                        statsMI_shadow,
+                    )
+            else:
+                statsMI_shadow = np.load(
+                    f"{self.folderName}/patient{patientN:02}_{self.nbins}_sha.npy"
+                )
 
         if not os.path.isfile(f"{self.folderName}/patient{patientN:02}_{self.nbins}_cor.npy"):
             for norm in task_producer(self.mat[:, :, patientN], 0):
                 corr = np.zeros(int(self.regions*(self.regions-1)/2))
                 corrMatrix = np.corrcoef(norm, rowvar=False)
+                / questa si può risolvere con triu
                 n=0
                 for zone1 in range(self.regions):
                     for zone2 in range(zone1 + 1, self.regions):
@@ -267,12 +297,15 @@ class NonLinearEstimator:
 
         return statsMI, statsMI_shadow, corr
 
-    def estimate(self):
+    def do_estimate(self, extended_stats=False, compute_shadow=False, **kwargs):
+        tmp_statsNames = self.statsNames if extended_stats else self.statsNames[:3]
         if os.path.isfile(os.path.join(self.folderName, "globalStats.json")):
             with open(os.path.join(self.folderName, "globalStats.json")) as fp:
                 self.globalStats = json.load(fp)
         else:
-            self.globalStats = {name: [] for name in self.statsNames}
+            self.globalStats = {name: [] for name in tmp_statsNames}
+            if compute_shadow:
+                self.globalStats.update({name+"shadow": [] for name in tmp_statsNames})
 
         with mp.Pool(self.workers) as pool:
             for patientN in tqdm(range(self.sessions), desc=f"Patient", leave=True):
@@ -287,29 +320,22 @@ class NonLinearEstimator:
 
                 if globalsToBeComputed or plottingNeeded:
                     statsMI, statsMI_shadow, corr = self._single_patient_numeric(
-                        patientN, pool)
+                        patientN, pool, compute_shadow)
 
                     if globalsToBeComputed:
                         assert max(map(len, self.globalStats.values(
                         ))) == globalStatsComputedSubjects, "Inconsistent globalStats.json"
-                        self._statistics(statsMI, statsMI_shadow)
+                        for key, val in statistics(statsMI, self.corrector.newco, self.corrector.trueval, self.workers, extended_stats):
+                            self.globalStats[key].append(val)
+                        if compute_shadow:
+                            for key, val in statistics(statsMI_shadow, self.corrector.newco, self.corrector.trueval, self.workers, extended_stats):
+                                self.globalStats[key+"shadow"].append(val)
 
                     if plottingNeeded:
                         self._smile_plot(patientN, corr, statsMI)
 
                 with open(os.path.join(self.folderName, "globalStats.json"), "w") as fp:
                     json.dump(self.globalStats, fp)
-
-    def _statistics(self, statsMI, statsMI_shadow):
-        statTrue = statistics(
-            statsMI, self.corrector.newco, self.corrector.trueval, self.workers)
-        statShadow = statistics(
-            statsMI_shadow, self.corrector.newco, self.corrector.trueval, self.workers)
-        for key in self.statsNames:
-            if "shadow" in key:
-                self.globalStats[key].append(statShadow[key[:-len("shadow")]])
-            else:
-                self.globalStats[key].append(statTrue[key])
 
     def _smile_plot(self, patientN, corr, statsMI):
         correctedperc01pointer = (self.Nsurrogates * (0.01) - 0.5) / (
