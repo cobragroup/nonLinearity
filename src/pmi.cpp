@@ -231,7 +231,7 @@ void second_loop(int numSurrogates, int numPairs, std::vector<double> &to_sigma2
     threadCount--;
 }
 
-returnStats statistics(double *data, int numPairs, int numSurrogates, double *estim, double *actual, int bins, int numThreads)
+returnStats statistics(double *data, int numPairs, int numSurrogates, double *estim, double *actual, int bins, int numThreads, bool extended_stats)
 {
     returnStats result;
     double correctedpercpointer[3], fractions[3] = {0.05, 0.95, 0.99};

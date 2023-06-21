@@ -2,7 +2,7 @@ import numpy as np
 from scipy.stats import norm
 import warnings
 import os
-from ctypes import c_int, cdll, POINTER, c_double, Structure
+from ctypes import c_int, cdll, POINTER, c_double, Structure, c_bool
 from typing import Union
 el_path = os.path.abspath(os.path.dirname(__file__))
 _libMI = cdll.LoadLibrary(os.path.join(el_path, 'bin/libpmi.so'))
@@ -74,10 +74,9 @@ def correct_vector(data: np.ndarray, estim: np.ndarray, actual: np.ndarray):
 
 
 def statistics (data: np.ndarray, estim: np.ndarray, actual: np.ndarray, numThreads: int, extended_stats:bool):
-    / continua da qui
     numPairs, numSurrogatesPU = data.shape
     bins = len(estim)
-    tmp = _libMI.statistics(data.ctypes.data_as(POINTER(c_double)), c_int(numPairs), c_int(numSurrogatesPU-1), estim.ctypes.data_as(POINTER(c_double)), actual.ctypes.data_as(POINTER(c_double)), c_int(bins), c_int(numThreads))
+    tmp = _libMI.statistics(data.ctypes.data_as(POINTER(c_double)), c_int(numPairs), c_int(numSurrogatesPU-1), estim.ctypes.data_as(POINTER(c_double)), actual.ctypes.data_as(POINTER(c_double)), c_int(bins), c_int(numThreads), c_bool(extended_stats))
     return {"global"+f[0]:getattr(tmp, f[0]) for f in tmp._fields_}
 
 
