@@ -188,7 +188,7 @@ class NonLinearEstimator:
             )
         self.pairNum = int((self.regions * (self.regions - 1)) / 2)
 
-    def __output_folder (self, suffix):
+    def __output_folder (self, suffix, **kwargs):
         if suffix is not None:
             self.suffix = suffix
 
@@ -212,17 +212,20 @@ class NonLinearEstimator:
         print(f"Output saved in: {self.folderName}")
         self.savenpy = True
 
-    def estimate(self, data=None, savenpy=None, suffix=None, retrieve=None, display=None, **kwargs):
+    def estimate(self, data=None, savenpy=None, retrieve=None, display=None, **kwargs):
         self.load_data(data=data, **kwargs)
 
-        if retrieve is not None:
-            self.retrieve = retrieve
         if savenpy is not None:
             self.savenpy = savenpy
-        if savenpy:
-            self.__output_folder(suffix=suffix)
+        if retrieve is not None:
+            self.retrieve = retrieve
         if display is not None:
             self.display = display
+
+        if  self.savenpy:
+            self.__output_folder(**kwargs)
+        else:
+            self.folderName = None
 
         self.corrector = Corrector(
             self.nbins,
@@ -240,9 +243,9 @@ class NonLinearEstimator:
 
     def _single_patient_numeric(self, patientN, pool: mp.Pool, compute_shadow):
         / gestisi bene i salvataggi o no
-        if not os.path.isfile(
-            f"{self.folderName}/patient{patientN:02}_{self.nbins}.npy"
-        ):
+        base_output_name = f"patient{patientN:02}_{self.nbins}"
+        base_output_path = os.path.join(self.folderName, base_output_name)
+        if self.folderName is not None and not os.path.isfile(base_output_path + ".npy"):
             statsMI = np.zeros([self.pairNum, self.Nsurrogates + 1])
             # tqdm(, disable=True, total=self.Nsurrogates + 1, desc=f"Patient {patientN} true", leave=False):
             for ns, tmi in enumerate(pool.imap(total_mutual_information, ((patient, self.nbins) for patient in task_producer(self.mat[:, :, patientN], self.Nsurrogates)))):
