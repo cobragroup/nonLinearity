@@ -242,7 +242,6 @@ class NonLinearEstimator:
         return self.do_estimate(**kwargs)
 
     def _single_patient_numeric(self, patientN, pool: mp.Pool, compute_shadow):
-        / gestisi bene i salvataggi o no
         base_output_name = f"patient{patientN:02}_{self.nbins}"
         base_output_path = os.path.join(self.folderName, base_output_name)
         if self.folderName is not None and not os.path.isfile(base_output_path + ".npy"):
@@ -251,17 +250,12 @@ class NonLinearEstimator:
             for ns, tmi in enumerate(pool.imap(total_mutual_information, ((patient, self.nbins) for patient in task_producer(self.mat[:, :, patientN], self.Nsurrogates)))):
                 statsMI[:, ns] = tmi
             if self.savenpy:
-                np.save(
-                    f"{self.folderName}/patient{patientN:02}_{self.nbins}", statsMI)
+                np.save(base_output_path + ".npy", statsMI)
         else:
-            statsMI = np.load(
-                f"{self.folderName}/patient{patientN:02}_{self.nbins}.npy"
-            )
+            statsMI = np.load(base_output_path + ".npy")
 
         if compute_shadow:
-            if not os.path.isfile(
-                f"{self.folderName}/patient{patientN:02}_{self.nbins}_sha.npy"
-            ):
+            if self.folderName is not None and not os.path.isfile(base_output_path + "_sha.npy"):
                 shadow = surrogate(self.mat[:, :, patientN])
                 statsMI_shadow = np.zeros([self.pairNum, self.Nsurrogates + 1])
                 # tqdm(, disable=True, total=self.Nsurrogates + 1, desc=f"Patient {patientN} shadow", leave=False):
@@ -269,40 +263,25 @@ class NonLinearEstimator:
                     statsMI_shadow[:, ns] = tmi
 
                 if self.savenpy:
-                    np.save(
-                        f"{self.folderName}/patient{patientN:02}_{self.nbins}_sha",
-                        statsMI_shadow,
-                    )
+                    np.save(base_output_path + "_sha.npy", statsMI_shadow)
             else:
-                statsMI_shadow = np.load(
-                    f"{self.folderName}/patient{patientN:02}_{self.nbins}_sha.npy"
-                )
-
-        if not os.path.isfile(f"{self.folderName}/patient{patientN:02}_{self.nbins}_cor.npy"):
-            for norm in task_producer(self.mat[:, :, patientN], 0):
-                corr = np.zeros(int(self.regions*(self.regions-1)/2))
-                corrMatrix = np.corrcoef(norm, rowvar=False)
-                / questa si può risolvere con triu
-                n=0
-                for zone1 in range(self.regions):
-                    for zone2 in range(zone1 + 1, self.regions):
-                        corr[n]=corrMatrix[zone1,zone2]
-                        n+=1
-                break
-            if self.savenpy:
-                np.save(
-                    f"{self.folderName}/patient{patientN:02}_{self.nbins}_cor", corr
-                )
+                statsMI_shadow = np.load(base_output_path + "_sha.npy")
         else:
-            corr = np.load(
-                f"{self.folderName}/patient{patientN:02}_{self.nbins}_cor.npy"
-            )
+            statsMI_shadow = None
+
+        if self.folderName is not None and not os.path.isfile(base_output_path + "_cor.npy"):
+            for norm in task_producer(self.mat[:, :, patientN], 0):
+                corr = np.corrcoef(norm, rowvar=False)[np.triu_indices(self.regions,1)]
+            if self.savenpy:
+                np.save(base_output_path + "_cor.npy", corr)
+        else:
+            corr = np.load(base_output_path + "_cor.npy")
 
         return statsMI, statsMI_shadow, corr
 
     def do_estimate(self, extended_stats=False, compute_shadow=False, **kwargs):
         tmp_statsNames = self.statsNames if extended_stats else self.statsNames[:3]
-        if os.path.isfile(os.path.join(self.folderName, "globalStats.json")):
+        if self.folderName is not None and os.path.isfile(os.path.join(self.folderName, "globalStats.json")):
             with open(os.path.join(self.folderName, "globalStats.json")) as fp:
                 self.globalStats = json.load(fp)
         else:
@@ -316,18 +295,17 @@ class NonLinearEstimator:
                 globalStatsComputedSubjects = min(
                     map(len, self.globalStats.values()))
                 globalsToBeComputed = globalStatsComputedSubjects < patientN+1
+                assert max(map(len, self.globalStats.values())) == globalStatsComputedSubjects, "Inconsistent globalStats.json"
 
                 plotAlreadyThere = os.path.isfile(
                     f"{self.folderName}/patient{patientN:02}_{self.nbins}.pdf")
-                plottingNeeded = (not plotAlreadyThere) or self.display
+                plottingNeeded = (self.folderName is not None and not plotAlreadyThere) or self.display
 
                 if globalsToBeComputed or plottingNeeded:
                     statsMI, statsMI_shadow, corr = self._single_patient_numeric(
                         patientN, pool, compute_shadow)
 
                     if globalsToBeComputed:
-                        assert max(map(len, self.globalStats.values(
-                        ))) == globalStatsComputedSubjects, "Inconsistent globalStats.json"
                         for key, val in statistics(statsMI, self.corrector.newco, self.corrector.trueval, self.workers, extended_stats):
                             self.globalStats[key].append(val)
                         if compute_shadow:
@@ -337,8 +315,10 @@ class NonLinearEstimator:
                     if plottingNeeded:
                         self._smile_plot(patientN, corr, statsMI)
 
-                with open(os.path.join(self.folderName, "globalStats.json"), "w") as fp:
-                    json.dump(self.globalStats, fp)
+                if self.folderName is not None:
+                    with open(os.path.join(self.folderName, os.path.split(self.folderName)[1]+"_globalStats.json"), "w") as fp:
+                        json.dump(self.globalStats, fp)
+        return {k: np.array(v) for k,v in self.globalStats.items()}
 
     def _smile_plot(self, patientN, corr, statsMI):
         correctedperc01pointer = (self.Nsurrogates * (0.01) - 0.5) / (
@@ -364,7 +344,7 @@ class NonLinearEstimator:
         title = f"Patient {patientN} - {self.globalStats['globaltotalMI'][patientN]:.3}/{self.globalStats['globalgaussMI'][patientN]:.3} (^{self.globalStats['globalratio95'][patientN]:.3}-{self.globalStats['globalratio95'][patientN]:.3}_{self.globalStats['globalratio95shadow'][patientN]:.3})"
         plt.title(title)
         plt.ylim(bottom=0)
-        if not os.path.isfile(
+        if self.folderName is not None and not os.path.isfile(
             f"{self.folderName}/patient{patientN:02}_{self.nbins}.pdf"
         ):
             plt.savefig(
