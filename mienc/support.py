@@ -7,7 +7,7 @@ from typing import Union
 from contextlib import contextmanager
 
 el_path = os.path.abspath(os.path.dirname(__file__))
-_libMI = cdll.LoadLibrary(os.path.join(el_path, 'bin/libpmi.so'))
+_libMI = cdll.LoadLibrary(os.path.join(el_path, '../bin/libpmi.so'))
 warnings.simplefilter("once", lineno=94, append=True)
 warnings.simplefilter("once", category=RuntimeWarning, append=True)
 class returnStats (Structure):
@@ -17,7 +17,7 @@ _libMI.pair_mutual_information.argtypes = (POINTER(c_double), POINTER(c_double),
 _libMI.pair_mutual_information.restype = c_double
 _libMI.total_mutual_information.argtypes = (POINTER(c_double), c_int, c_int, c_int, POINTER(c_double))
 _libMI.total_mutual_information.restype = None
-_libMI.statistics.argtypes = (POINTER(c_double), c_int, c_int, POINTER(c_double), POINTER(c_double), c_int, c_int)
+_libMI.statistics.argtypes = (POINTER(c_double), c_int, c_int, POINTER(c_double), POINTER(c_double), c_int, c_int, c_bool)
 _libMI.statistics.restype = returnStats
 _libMI.correct_vector.argtypes = (POINTER(c_double), c_int, POINTER(c_double), POINTER(c_double), c_int, POINTER(c_double))
 _libMI.correct_vector.restype = None
@@ -124,6 +124,21 @@ def task_producer(patient, Nsurrogates, multivariate=True):
         yield _patient
     for i in range(Nsurrogates):
         yield surrogate(_patient, multivariate)
+
+
+def adjust_jitter (jitter):
+    if isinstance(jitter, str):
+        try:
+            jitter = float(jitter)
+        except:
+            jitter = bool(jitter)
+    if isinstance(jitter, bool):
+        if jitter:
+            jitter = 1e-3
+    else:
+        if np.isclose(jitter, 0):
+            jitter = False
+    return jitter 
 
 
 class a_normal_map ():

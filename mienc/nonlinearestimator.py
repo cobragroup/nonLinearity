@@ -4,6 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 import multiprocessing as mp
+from multiprocessing.pool import Pool as pool_type
 import configparser
 import json
 import scipy.io as sio
@@ -11,11 +12,11 @@ from warnings import warn
 import sys
 import os
 import socket
+from typing import Union
 path = os.path.dirname(os.path.realpath(__file__))
 sys.path.append(path)
 from corrector import Corrector
-from support import quantile_vector, total_mutual_information, surrogate, task_producer, statistics, fake_pool, a_normal_map
-import warnings
+from support import total_mutual_information, surrogate, task_producer, statistics, fake_pool, a_normal_map, adjust_jitter
 from innovationOrthogonalization import innOr
 
 class NonLinearEstimator:
@@ -42,7 +43,7 @@ class NonLinearEstimator:
         if workers is not None:
             self.workers = workers
         if jitter is not None:
-            self.jitter = self.__adjust_jitter (jitter)
+            self.jitter = adjust_jitter (jitter)
 
         assert self.nbins is not None, "Number of bins undefined, can't create the NonLinearEstimator"
         assert self.Nsurrogates is not None, "Number of surrogates undefined, can't create the NonLinearEstimator"
@@ -77,7 +78,7 @@ class NonLinearEstimator:
             if not os.path.isabs(self.ouputFolder):
                 self.ouputFolder = os.path.abspath(os.path.join(path, self.ouputFolder))
         except Exception as e:
-            warnings.warn("Unable to read config file. "+e.args[0])
+            warn("Unable to read config file.\n"+"\n".join(e.args))
             self.config = None
             self.ortho = None
             self.jitter = None
@@ -124,25 +125,13 @@ class NonLinearEstimator:
             self.fileName), f"Missing dataset at specified path: {self.fileName}."
         print(f"Using: {os.path.abspath(self.fileName)}")
 
-    def __adjust_jitter (self, jitter):
-        if isinstance(jitter, str):
-            try:
-                jitter = float(jitter)
-            except:
-                jitter = bool(jitter)
-        if isinstance(jitter, bool):
-            if jitter:
-                jitter = 1e-3
-        else:
-            if np.isclose(jitter, 0):
-                jitter = False
-        return jitter 
 
     def load_data(self, data=None, jitter=None, ortho=None, **kwargs):
+        self.globalStats = None
         if ortho is not None:
             self.ortho = ortho
         if jitter is not None:
-            self.jitter = self.__adjust_jitter (jitter)
+            self.jitter = adjust_jitter (jitter)
         if data is None:
             self.__read_config_dataset(**kwargs)
             if self.fieldName is None:
@@ -157,30 +146,36 @@ class NonLinearEstimator:
         else:
             self.fileName = None
             tmp_mat = data
-            
+        tmp_mat = np.squeeze(tmp_mat)
+        if len(tmp_mat.shape) != 3:
+            if len(tmp_mat.shape)==2:
+                tmp_mat = tmp_mat[:,:,np.newaxis]
+            else:
+                raise RuntimeError("The number of effective dimensions of input data ({}) can't be constrained to samples x regions (x subjects) format.".format(len(tmp_mat.shape)))
+
         if self.ortho:
             try:
-                self.mat = innOr(data, **kwargs)
+                self.mat = innOr(tmp_mat, **kwargs)
             except np.linalg.LinAlgError as e:
-                raise RuntimeError(*e.args)    
+                raise RuntimeError(*e.args)
+        else:
+            self.mat = tmp_mat
+
         if self.jitter:
             spa = np.sort(np.diff(np.sort(self.mat[:,0,0])))[0]
-            self.mat += np.random.normal(0, spa*1e-3, self.mat.shape)
+            self.mat += np.random.normal(0, spa*jitter, self.mat.shape)
+
         duration, self.regions, self.sessions = self.mat.shape
-        with open(os.path.join(self.folderName, "shape.json"), "w") as fp:
-            json.dump(self.mat.shape, fp)
+        if self.folderName is not None:
+            with open(os.path.join(self.folderName, "shape.json"), "w") as fp:
+                json.dump(self.mat.shape, fp)
 
         print(
             "Loaded data matrix: {} samples by {} regions by {} sessions".format(
                 duration, self.regions, self.sessions
             )
         )
-        if self.nsamples == 0:
-            self.nsamples = duration
-        if duration != self.nsamples:
-            warn(
-                f"Acquisition duration ({duration}) is different from the set number of samples for correction ({self.nsamples})."
-            )
+
         self.pairNum = int((self.regions * (self.regions - 1)) / 2)
 
     def __output_folder (self, suffix, **kwargs):
@@ -208,8 +203,6 @@ class NonLinearEstimator:
         self.savenpy = True
 
     def estimate(self, data=None, savenpy=None, retrieve=None, display=None, **kwargs):
-        self.load_data(data=data, **kwargs)
-
         if savenpy is not None:
             self.savenpy = savenpy
         if retrieve is not None:
@@ -222,6 +215,8 @@ class NonLinearEstimator:
         else:
             self.folderName = None
 
+        self.load_data(data=data, **kwargs)
+        print(self.folderName, self.cacheDir)
         self.corrector = Corrector(
             self.nbins,
             folderName=self.folderName,
@@ -230,27 +225,32 @@ class NonLinearEstimator:
             display=self.display,
             retrieve=self.retrieve,
             config=self.config,
+            duration=self.mat.shape[0],
             **kwargs
         )
         self.corrector.compute_correction()
 
         return self.do_estimate(**kwargs)
 
-    def _single_patient_numeric(self, patientN:int, pool: mp.Pool|a_normal_map, compute_shadow:bool):
-        base_output_name = f"patient{patientN:02}_{self.nbins}"
-        base_output_path = os.path.join(self.folderName, base_output_name)
-        if self.folderName is not None and not os.path.isfile(base_output_path + ".npy"):
+    def _single_patient_numeric(self, patientN:int, pool: Union[pool_type,a_normal_map], compute_shadow:bool):
+        if self.folderName is not None:
+            base_output_name = f"patient{patientN:02}_{self.nbins}"
+            base_output_path = os.path.join(self.folderName, base_output_name)
+
+        if self.folderName is not None and os.path.isfile(base_output_path + ".npy"):
+            statsMI = np.load(base_output_path + ".npy")
+        else:
             statsMI = np.zeros([self.pairNum, self.Nsurrogates + 1])
             # tqdm(, disable=True, total=self.Nsurrogates + 1, desc=f"Patient {patientN} true", leave=False):
             for ns, tmi in enumerate(pool.imap(total_mutual_information, ((patient, self.nbins) for patient in task_producer(self.mat[:, :, patientN], self.Nsurrogates)))):
                 statsMI[:, ns] = tmi
             if self.savenpy:
                 np.save(base_output_path + ".npy", statsMI)
-        else:
-            statsMI = np.load(base_output_path + ".npy")
 
         if compute_shadow:
-            if self.folderName is not None and not os.path.isfile(base_output_path + "_sha.npy"):
+            if self.folderName is not None and os.path.isfile(base_output_path + "_sha.npy"):
+                statsMI_shadow = np.load(base_output_path + "_sha.npy")
+            else:
                 shadow = surrogate(self.mat[:, :, patientN])
                 statsMI_shadow = np.zeros([self.pairNum, self.Nsurrogates + 1])
                 # tqdm(, disable=True, total=self.Nsurrogates + 1, desc=f"Patient {patientN} shadow", leave=False):
@@ -259,18 +259,16 @@ class NonLinearEstimator:
 
                 if self.savenpy:
                     np.save(base_output_path + "_sha.npy", statsMI_shadow)
-            else:
-                statsMI_shadow = np.load(base_output_path + "_sha.npy")
         else:
             statsMI_shadow = None
 
-        if self.folderName is not None and not os.path.isfile(base_output_path + "_cor.npy"):
+        if self.folderName is not None and os.path.isfile(base_output_path + "_cor.npy"):
+            corr = np.load(base_output_path + "_cor.npy")
+        else:
             for norm in task_producer(self.mat[:, :, patientN], 0):
                 corr = np.corrcoef(norm, rowvar=False)[np.triu_indices(self.regions,1)]
             if self.savenpy:
                 np.save(base_output_path + "_cor.npy", corr)
-        else:
-            corr = np.load(base_output_path + "_cor.npy")
 
         return statsMI, statsMI_shadow, corr
 
@@ -301,11 +299,13 @@ class NonLinearEstimator:
                         patientN, pool, compute_shadow)
 
                     if globalsToBeComputed:
-                        for key, val in statistics(statsMI, self.corrector.newco, self.corrector.trueval, self.workers, extended_stats):
-                            self.globalStats[key].append(val)
+                        for key, val in statistics(statsMI, self.corrector.newco, self.corrector.trueval, self.workers, extended_stats).items():
+                            if key in self.globalStats:
+                                self.globalStats[key].append(val)
                         if compute_shadow:
-                            for key, val in statistics(statsMI_shadow, self.corrector.newco, self.corrector.trueval, self.workers, extended_stats):
-                                self.globalStats[key+"shadow"].append(val)
+                            for key, val in statistics(statsMI_shadow, self.corrector.newco, self.corrector.trueval, self.workers, extended_stats).items():
+                                if key in self.globalStats:
+                                    self.globalStats[key+"shadow"].append(val)
 
                     if plottingNeeded:
                         self._smile_plot(patientN, corr, statsMI)
@@ -313,7 +313,7 @@ class NonLinearEstimator:
                 if self.folderName is not None:
                     with open(os.path.join(self.folderName, os.path.split(self.folderName)[1]+"_globalStats.json"), "w") as fp:
                         json.dump(self.globalStats, fp)
-        return {k: np.array(v) for k,v in self.globalStats.items()}
+        return {k: np.array(v) if len(v)>1 else v[0] for k,v in self.globalStats.items()}
 
     def _smile_plot(self, patientN, corr, statsMI):
         correctedperc01pointer = (self.Nsurrogates * (0.01) - 0.5) / (

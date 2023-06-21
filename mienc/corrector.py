@@ -8,11 +8,14 @@ import glob
 import json
 import configparser
 import socket
+from warnings import warn
+from typing import Union
 
 class Corrector:
     def __init__(
         self,
         nbins:int,
+        duration:int,
         steps:int = None,
         iters:int = None,
         nsamples:int = None,
@@ -22,7 +25,7 @@ class Corrector:
         smoothed:bool=False,
         display:bool=False,
         retrieve:bool=True,
-        config:str|configparser.ConfigParser = None,
+        config:Union[str,configparser.ConfigParser] = None,
         **kwargs
     ):
         self.nbins = nbins
@@ -64,9 +67,16 @@ class Corrector:
             self.steps = steps
         if iters is not None:
             self.iters = iters
+        
         if nsamples is not None:
             self.nsamples = nsamples
-
+            
+        if self.nsamples == 0:
+            self.nsamples = duration
+        if duration != self.nsamples:
+            warn(
+                f"Acquisition duration ({duration}) is different from the set number of samples for correction ({self.nsamples})."
+            )
         self.folderName = folderName
 
         self.smoothed = smoothed
@@ -87,15 +97,15 @@ class Corrector:
     def __retrieve (self, retrieve):
         self.earlyResultsPath = None
 
-        if os.path.isfile(os.path.join(self.folderName,f"newco_{self.nbins}.npy")):
+        if self.folderName is not None and os.path.isfile(os.path.join(self.folderName,f"newco_{self.nbins}.npy")):
             self.earlyResultsPath = os.path.join(self.folderName,f"newco_{self.nbins}.npy")
             return
         
-        if os.path.isfile(os.path.join(self.cacheDir,f"newco_{self.nbins}_{self.nsamples}.npy")):
-            self.earlyResultsPath = os.path.join(self.cacheDir,f"newco_{self.nbins}_{self.nsamples}.npy")
+        if self.cacheDir is not None and os.path.isfile(os.path.join(self.cacheDir,f"correction_{self.nsamples}_{self.nbins}.npy")):
+            self.earlyResultsPath = os.path.join(self.cacheDir,f"correction_{self.nsamples}_{self.nbins}.npy")
             return
         
-        if not retrieve:
+        if not retrieve or self.folderName is None:
             return
             
         for fold in glob.glob(os.path.abspath(os.path.join(self.folderName, os.pardir, f"*bin{self.nbins}"))):
@@ -151,10 +161,10 @@ class Corrector:
         self.trueval = -0.5 * np.log(1 - (np.arange(self.steps) / self.steps) ** 2)
 
         if self.cacheDir and not self.cacheDir in self.earlyResultsPath:
-            np.save(os.path.join(self.cacheDir, f"newco_{self.nbins}_{self.nsamples}.npy", self.newco))
+            np.save(os.path.join(self.cacheDir, f"newco_{self.nsamples}_{self.nbins}.npy", self.newco))
 
         if self.folderName and not self.folderName in self.earlyResultsPath:
-            np.save(os.path.join(self.folderName, f"newco_{self.nbins}.npy", self.newco))
+            np.save(os.path.join(self.folderName, f"correction_{self.nbins}.npy", self.newco))
 
         if self.folderName or self.display:
             # this is needed to get an estimate of the size of the bias we are correcting
