@@ -4,6 +4,8 @@ import warnings
 import os
 from ctypes import c_int, cdll, POINTER, c_double, Structure, c_bool
 from typing import Union
+from contextlib import contextmanager
+
 el_path = os.path.abspath(os.path.dirname(__file__))
 _libMI = cdll.LoadLibrary(os.path.join(el_path, 'bin/libpmi.so'))
 warnings.simplefilter("once", lineno=94, append=True)
@@ -122,3 +124,22 @@ def task_producer(patient, Nsurrogates, multivariate=True):
         yield _patient
     for i in range(Nsurrogates):
         yield surrogate(_patient, multivariate)
+
+
+class a_normal_map ():
+    def __init__(self) -> None:
+        pass
+
+    def imap (self, *args):
+        return map(*args)
+    
+    def map (self, *args):
+        return map(*args)
+
+
+@contextmanager
+def fake_pool (*args, **kwargs):
+    try:
+        yield a_normal_map()
+    finally:
+        pass

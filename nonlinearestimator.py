@@ -14,7 +14,7 @@ import socket
 path = os.path.dirname(os.path.realpath(__file__))
 sys.path.append(path)
 from corrector import Corrector
-from support import quantile_vector, total_mutual_information, surrogate, task_producer, statistics
+from support import quantile_vector, total_mutual_information, surrogate, task_producer, statistics, fake_pool, a_normal_map
 import warnings
 from innovationOrthogonalization import innOr
 
@@ -48,7 +48,10 @@ class NonLinearEstimator:
         assert self.Nsurrogates is not None, "Number of surrogates undefined, can't create the NonLinearEstimator"
         if self.workers is None:
             self.workers=1
-        / aggiungi la finta pool
+        if self.workers>1:
+            self.pool = mp.Pool
+        else:
+            self.pool = fake_pool
 
     def __read_config (self, configFile):
         configfile = configFile if configFile is not None else os.path.join(
@@ -233,7 +236,7 @@ class NonLinearEstimator:
 
         return self.do_estimate(**kwargs)
 
-    def _single_patient_numeric(self, patientN, pool: mp.Pool, compute_shadow):
+    def _single_patient_numeric(self, patientN:int, pool: mp.Pool|a_normal_map, compute_shadow:bool):
         base_output_name = f"patient{patientN:02}_{self.nbins}"
         base_output_path = os.path.join(self.folderName, base_output_name)
         if self.folderName is not None and not os.path.isfile(base_output_path + ".npy"):
@@ -281,7 +284,7 @@ class NonLinearEstimator:
             if compute_shadow:
                 self.globalStats.update({name+"shadow": [] for name in tmp_statsNames})
 
-        with mp.Pool(self.workers) as pool:
+        with self.pool(self.workers) as pool:
             for patientN in tqdm(range(self.sessions), desc=f"Patient", leave=True):
 
                 globalStatsComputedSubjects = min(

@@ -1,4 +1,4 @@
-from support import single_iter, correct_vector
+from support import single_iter, correct_vector, fake_pool
 import os
 from tqdm import tqdm
 import matplotlib.pyplot as plt
@@ -72,6 +72,10 @@ class Corrector:
         self.smoothed = smoothed
         self.display = display
         self.workers = workers
+        if self.workers>1:
+            self.pool = mp.Pool
+        else:
+            self.pool = fake_pool
 
         self.newco = None
         self.trueval = None
@@ -109,31 +113,25 @@ class Corrector:
         incre = 1 / self.steps
         correction = np.zeros(self.steps)
         if self.earlyResultsPath is None:
-            pool = mp.Pool(self.workers)
-            for i in tqdm(range(self.steps), "Computing correction"):
-                means = 0, 0
-                corre = [[1, i * incre], [i * incre, 1]]
-                I = pool.map(
-                    single_iter,
-                    (
-                        (means, corre, self.nsamples, self.nbins)
-                        for __ in range(self.iters)
-                    ),
-                )
-                correction[i] = np.average(I)
+            with self.pool(self.workers) as pool:
+                for i in tqdm(range(self.steps), "Computing correction"):
+                    means = 0, 0
+                    corre = [[1, i * incre], [i * incre, 1]]
+                    I = pool.map(
+                        single_iter,
+                        (
+                            (means, corre, self.nsamples, self.nbins)
+                            for __ in range(self.iters)
+                        ),
+                    )
+                    correction[i] = np.average(I)
 
             if self.smoothed:
-                tosmo = np.array(
-                    [
-                        correction[0],
-                    ]
-                    * 2
-                    + correction.tolist()
-                    + [
-                        correction[-1],
-                    ]
-                    * 2
-                )
+                tosmo = np.zeros(correction.shape[0]+4)
+                tosmo[:2] = correction[0]
+                tosmo[2,-2] = correction
+                tosmo[-2:] = correction[-1]
+                
                 self.newco = np.zeros_like(correction)
                 for i in range(len(correction)):
                     self.newco[i] = np.mean(tosmo[i : i + 5])
@@ -146,7 +144,6 @@ class Corrector:
                         pass
             else:
                 self.newco = correction
-            pool.close()
         else:
             self.newco = np.load(self.earlyResultsPath)
             correction = self.newco
