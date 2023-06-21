@@ -7,15 +7,25 @@
 
 import numpy as np
 import numpy.typing as npt
-from statsmodels.tsa.api import VAR
+try:
+    from statsmodels.tsa.api import VAR
+    __loaded = True
+except ModuleNotFoundError:
+    import warnings
+    warnings.warn("'statsmodels' module missing, impossible to fit the VAR, 'innor' won't work.")
+    __loaded = False
+except ImportError as e:
+    import warnings
+    warnings.warn("'statsmodels' failed to load, impossible to fit the VAR, 'innor' won't work.\n"+e.msg)
+    __loaded = False
 
-def innor(Y: npt.NDArray, verbose: bool = False, all_matrices: bool = False) -> npt.NDArray:
+def innOr(Y: npt.NDArray, verbose: bool = False, all_matrices: bool = False) -> npt.NDArray:
     """Applies innovation orthogonalisation (Pascual-Marqui et al., 2017) to input data.
 
     Parameters
     ----------
     Y : {ndarray, None}
-        The input data with shape (T, S) corresponding to S time series with T samples each.
+        The input data with shape (T, S, [N]) corresponding to S time series with T samples each. The optional third dimension is the number of subjects. With 3D input all_matrices is always False.
     verbose : {bool, False}
         Outputs optional information about the optimisation.
     all_matrices : {bool, False}
@@ -36,6 +46,18 @@ def innor(Y: npt.NDArray, verbose: bool = False, all_matrices: bool = False) -> 
     Pascual-Marqui et al., 2017, p. 3-5, 20, http://dx.doi.org/10.1101/178657
     
     """
+    if not __loaded:
+        warnings.warn("'statsmodels' module missing, impossible to fit the VAR, returning original input.")
+        return Y
+    if len(Y.shape)>2:
+        ortho = np.empty_like(Y)
+        for i in range(Y.shape[2]):
+            ortho[:,:,i] = __ortho(Y[:,:,i], verbose, False)
+        return ortho
+    else:
+        return __ortho(Y, verbose, all_matrices)
+
+def __ortho (Y, verbose, all_matrices):
     VAR_mod = VAR(Y)
     res = VAR_mod.fit(ic="aic", verbose=verbose, trend='n')
     eta = res.resid
