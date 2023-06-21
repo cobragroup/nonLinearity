@@ -79,7 +79,7 @@ def statistics (data: np.ndarray, estim: np.ndarray, actual: np.ndarray, numThre
     numPairs, numSurrogatesPU = data.shape
     bins = len(estim)
     tmp = _libMI.statistics(data.ctypes.data_as(POINTER(c_double)), c_int(numPairs), c_int(numSurrogatesPU-1), estim.ctypes.data_as(POINTER(c_double)), actual.ctypes.data_as(POINTER(c_double)), c_int(bins), c_int(numThreads), c_bool(extended_stats))
-    return {"global"+f[0]:getattr(tmp, f[0]) for f in tmp._fields_}
+    return {f[0]:getattr(tmp, f[0]) for f in tmp._fields_}
 
 
 def quantile_vector (data: np.ndarray, quantile: Union[float,np.ndarray]):

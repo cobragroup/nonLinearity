@@ -19,7 +19,7 @@ import warnings
 from innovationOrthogonalization import innOr
 
 class NonLinearEstimator:
-    statsNames = ["globaltotalMI", "globalgaussMI", "globalsigmaGaussMI", "globalratio95control", "globalratio99control", "globalratio05", "globalratio95", "globalratio99"]
+    statsNames = ["totalMI", "gaussMI", "sigmaGaussMI", "ratio95control", "ratio99control", "ratio05", "ratio95", "ratio99"]
 
     def __init__(self, configFile=None, nbins=None, Nsurrogates=None, cache=None, savenpy=False, suffix="", retrieve=True, jitter=False, ortho=False, dataset=None, regions="", truncateInput=None, workers=None):
         self.savenpy = savenpy
