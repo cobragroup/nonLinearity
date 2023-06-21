@@ -28,15 +28,13 @@ class NonLinearEstimator:
         self.dataset = dataset
         self.regions = regions
         self.truncateInput = truncateInput
+        self.cacheDir = cache
 
         self.__read_config(configFile)
 
         if ortho is not None:
             self.ortho = ortho
-        if cache is not None:
-            self.cacheDir = cache
-            if self.cacheDir is not None and not os.path.isdir(self.cacheDir) and os.path.isdir(os.path.join(path, self.cacheDir)):
-                self.cacheDir = os.path.join(path, self.cacheDir)
+
         if nbins is not None:
             self.nbins = nbins
         if Nsurrogates is not None:
@@ -64,7 +62,6 @@ class NonLinearEstimator:
             self.display = self.config.getboolean("global", "display", fallback=True)
             self.workers = self.config.getint("global", "workers", fallback=4)
             self.ouputFolder = self.config.get("global", "outputFolder", fallback="..")
-            self.cacheDir = self.config.getint("correction", "cacheDir", fallback=None)
             self.nbins = self.config.getint("global", "nbins", fallback=8)
             self.Nsurrogates = self.config.getint("global", "Nsurrogates", fallback=99)
 
@@ -74,10 +71,6 @@ class NonLinearEstimator:
                     thisHost, "workers", fallback=self.workers)
                 self.ouputFolder = self.config.get(
                     thisHost, "outputFolder", fallback=self.ouputFolder)
-                self.cacheDir = self.config.get(thisHost, "cacheDir", fallback=self.cacheDir)
-
-            if self.cacheDir is not None and not os.path.isdir(self.cacheDir) and os.path.isdir(os.path.join(path, self.cacheDir)):
-                self.cacheDir = os.path.join(path, self.cacheDir)
             if not os.path.isabs(self.ouputFolder):
                 self.ouputFolder = os.path.abspath(os.path.join(path, self.ouputFolder))
         except Exception as e:
@@ -88,7 +81,6 @@ class NonLinearEstimator:
             self.display = None
             self.workers = None
             self.ouputFolder = None
-            self.cacheDir = None
             self.nbins = None
 
     def __read_config_dataset (self, regions=None, truncateInput=None, dataset=None, **kwargs):
