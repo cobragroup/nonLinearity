@@ -12,12 +12,15 @@ try:
     __loaded = True
 except ModuleNotFoundError:
     import warnings
-    warnings.warn("'statsmodels' module missing, impossible to fit the VAR, 'innor' won't work.")
+    warnings.warn(
+        "'statsmodels' module missing, impossible to fit the VAR, 'innor' won't work.")
     __loaded = False
 except ImportError as e:
     import warnings
-    warnings.warn("'statsmodels' failed to load, impossible to fit the VAR, 'innor' won't work.\n"+e.msg)
+    warnings.warn(
+        "'statsmodels' failed to load, impossible to fit the VAR, 'innor' won't work.\n"+e.msg)
     __loaded = False
+
 
 def innOr(Y: npt.NDArray, verbose: bool = False, all_matrices: bool = False, **kwargs) -> npt.NDArray:
     """Applies innovation orthogonalisation (Pascual-Marqui et al., 2017) to input data.
@@ -44,20 +47,22 @@ def innOr(Y: npt.NDArray, verbose: bool = False, all_matrices: bool = False, **k
     Notes
     -----
     Pascual-Marqui et al., 2017, p. 3-5, 20, http://dx.doi.org/10.1101/178657
-    
+
     """
     if not __loaded:
-        warnings.warn("'statsmodels' module missing, impossible to fit the VAR, returning original input.")
+        warnings.warn(
+            "'statsmodels' module missing, impossible to fit the VAR, returning original input.")
         return Y
-    if len(Y.shape)>2:
+    if len(Y.shape) > 2:
         ortho = np.empty_like(Y)
         for i in range(Y.shape[2]):
-            ortho[:,:,i] = __ortho(Y[:,:,i], verbose, False)
+            ortho[:, :, i] = __ortho(Y[:, :, i], verbose, False)
         return ortho
     else:
         return __ortho(Y, verbose, all_matrices)
 
-def __ortho (Y, verbose, all_matrices):
+
+def __ortho(Y, verbose, all_matrices):
     VAR_mod = VAR(Y)
     res = VAR_mod.fit(ic="aic", verbose=verbose, trend='n')
     eta = res.resid

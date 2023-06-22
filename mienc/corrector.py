@@ -1,4 +1,4 @@
-from support import single_iter, correct_vector, fake_pool
+from .support import single_iter, correct_vector, fake_pool
 import os
 from tqdm import tqdm
 import matplotlib.pyplot as plt
@@ -11,25 +11,26 @@ import socket
 from warnings import warn
 from typing import Union
 
+
 class Corrector:
     def __init__(
         self,
-        nbins:int,
-        duration:int,
-        steps:int = None,
-        iters:int = None,
-        nsamples:int = None,
-        folderName:str = None,
-        cacheDir:str = None,
-        workers:int=1,
-        smoothed:bool=False,
-        display:bool=False,
-        retrieve:bool=True,
-        config:Union[str,configparser.ConfigParser] = None,
+        bins: int,
+        duration: int,
+        steps: int = None,
+        iterations: int = None,
+        samples: int = None,
+        folder_name: str = None,
+        cache_dir: Union[str, bytes, os.PathLike] = None,
+        workers: int = 1,
+        smoothed: bool = False,
+        display: bool = False,
+        retrieve: bool = True,
+        config: Union[str, configparser.ConfigParser] = None,
         **kwargs
     ):
-        self.nbins = nbins
-             
+        self.bins = bins
+
         if config is not None:
             if isinstance(config, str) and os.path.isfile(config):
                 try:
@@ -46,76 +47,83 @@ class Corrector:
 
         if self.config is not None:
             self.steps = config.getint("correction", "steps", fallback=200)
-            self.iters = config.getint("correction", "iters", fallback=10000)
-            self.nsamples = config.getint("correction", "nsamples", fallback=0)
-            self.cacheDir = self.config.getint("correction", "cacheDir", fallback=None)
+            self.iterations = config.getint(
+                "correction", "iters", fallback=10000)
+            self.samples = config.getint("correction", "nsamples", fallback=0)
+            self.cache_dir = self.config.getint(
+                "correction", "cacheDir", fallback=None)
 
-            thisHost = socket.gethostname()
-            if self.config.has_section(thisHost):
-                self.cacheDir = self.config.get(thisHost, "cacheDir", fallback=self.cacheDir)
+            this_host = socket.gethostname()
+            if self.config.has_section(this_host):
+                self.cache_dir = self.config.get(
+                    this_host, "cacheDir", fallback=self.cache_dir)
 
             path = os.path.dirname(os.path.realpath(__file__))
-            if self.cacheDir is not None and not os.path.isdir(self.cacheDir) and os.path.isdir(os.path.join(path, self.cacheDir)):
-                self.cacheDir = os.path.join(path, self.cacheDir)
+            if self.cache_dir is not None and not os.path.isdir(self.cache_dir) and os.path.isdir(os.path.join(path, self.cache_dir)):
+                self.cache_dir = os.path.join(path, self.cache_dir)
 
-        if cacheDir is not None:
-            self.cacheDir = cacheDir
-            if self.cacheDir is not None and not os.path.isdir(self.cacheDir) and os.path.isdir(os.path.join(path, self.cacheDir)):
-                self.cacheDir = os.path.join(path, self.cacheDir)
-        
+        if cache_dir is not None:
+            self.cache_dir = cache_dir
+            if self.cache_dir is not None and not os.path.isdir(self.cache_dir) and os.path.isdir(os.path.join(path, self.cache_dir)):
+                self.cache_dir = os.path.join(path, self.cache_dir)
+
         if steps is not None:
             self.steps = steps
-        if iters is not None:
-            self.iters = iters
-        
-        if nsamples is not None:
-            self.nsamples = nsamples
-            
-        if self.nsamples == 0:
-            self.nsamples = duration
-        if duration != self.nsamples:
+        if iterations is not None:
+            self.iterations = iterations
+
+        if samples is not None:
+            self.samples = samples
+
+        if self.samples == 0:
+            self.samples = duration
+        if duration != self.samples:
             warn(
-                f"Acquisition duration ({duration}) is different from the set number of samples for correction ({self.nsamples})."
+                f"Acquisition duration ({duration}) is different from the set number of samples for correction ({self.samples})."
             )
-        self.folderName = folderName
+        self.folder_name = folder_name
 
         self.smoothed = smoothed
         self.display = display
         self.workers = workers
-        if self.workers>1:
+        if self.workers > 1:
             self.pool = mp.Pool
         else:
             self.pool = fake_pool
 
-        self.newco = None
-        self.trueval = None
-        self.old_correctI = np.vectorize(self._correctI)
-        self.correctI = lambda x: correct_vector(x, self.newco, self.trueval)
-        
+        self.correction = None
+        self.true_value = None
+        self.old_correct = np.vectorize(self._correct)
+        self.correct = lambda x: correct_vector(
+            x, self.correction, self.true_value)
+
         self.__retrieve(retrieve)
-    
-    def __retrieve (self, retrieve):
+
+    def __retrieve(self, retrieve):
         self.earlyResultsPath = None
 
-        if self.folderName is not None and os.path.isfile(os.path.join(self.folderName,f"newco_{self.nbins}.npy")):
-            self.earlyResultsPath = os.path.join(self.folderName,f"newco_{self.nbins}.npy")
+        if self.folder_name is not None and os.path.isfile(os.path.join(self.folder_name, f"correction_{self.bins}.npy")):
+            self.earlyResultsPath = os.path.join(
+                self.folder_name, f"correction_{self.bins}.npy")
             return
-        
-        if self.cacheDir is not None and os.path.isfile(os.path.join(self.cacheDir,f"correction_{self.nsamples}_{self.nbins}.npy")):
-            self.earlyResultsPath = os.path.join(self.cacheDir,f"correction_{self.nsamples}_{self.nbins}.npy")
+
+        if self.cache_dir is not None and os.path.isfile(os.path.join(self.cache_dir, f"correction_{self.samples}_{self.bins}.npy")):
+            self.earlyResultsPath = os.path.join(
+                self.cache_dir, f"correction_{self.samples}_{self.bins}.npy")
             return
-        
-        if not retrieve or self.folderName is None:
+
+        if not retrieve or self.folder_name is None:
             return
-            
-        for fold in glob.glob(os.path.abspath(os.path.join(self.folderName, os.pardir, f"*bin{self.nbins}"))):
-            if os.path.isfile(os.path.join(fold,"shape.json")):
-                with open(os.path.join(fold,"shape.json")) as fp:
+
+        for fold in glob.glob(os.path.abspath(os.path.join(self.folder_name, os.pardir, f"*bin{self.bins}"))):
+            if os.path.isfile(os.path.join(fold, "shape.json")):
+                with open(os.path.join(fold, "shape.json")) as fp:
                     shape = json.load(fp)
-                    if shape[0] == self.nsamples:
-                        if os.path.isfile(os.path.join(fold,f"newco_{self.nbins}.npy")):
+                    if shape[0] == self.samples:
+                        if os.path.isfile(os.path.join(fold, f"correction_{self.bins}.npy")):
                             print("Retrieving correction from: ", fold)
-                            self.earlyResultsPath = os.path.join(fold,f"newco_{self.nbins}.npy")
+                            self.earlyResultsPath = os.path.join(
+                                fold, f"correction_{self.bins}.npy")
                             return
 
     def compute_correction(self):
@@ -130,8 +138,8 @@ class Corrector:
                     I = pool.map(
                         single_iter,
                         (
-                            (means, corre, self.nsamples, self.nbins)
-                            for __ in range(self.iters)
+                            (means, corre, self.samples, self.bins)
+                            for __ in range(self.iterations)
                         ),
                     )
                     correction[i] = np.average(I)
@@ -139,59 +147,64 @@ class Corrector:
             if self.smoothed:
                 tosmo = np.zeros(correction.shape[0]+4)
                 tosmo[:2] = correction[0]
-                tosmo[2,-2] = correction
+                tosmo[2, -2] = correction
                 tosmo[-2:] = correction[-1]
-                
-                self.newco = np.zeros_like(correction)
+
+                self.correction = np.zeros_like(correction)
                 for i in range(len(correction)):
-                    self.newco[i] = np.mean(tosmo[i : i + 5])
+                    self.correction[i] = np.mean(tosmo[i: i + 5])
                 if self.display:
                     try:
                         plt.plot(correction[:50])
-                        plt.plot(self.newco[:50])
+                        plt.plot(self.correction[:50])
                         plt.show()
                     except:
                         pass
             else:
-                self.newco = correction
+                self.correction = correction
         else:
-            self.newco = np.load(self.earlyResultsPath)
-            correction = self.newco
+            self.correction = np.load(self.earlyResultsPath)
+            correction = self.correction
 
-        self.trueval = -0.5 * np.log(1 - (np.arange(self.steps) / self.steps) ** 2)
+        self.true_value = -0.5 * \
+            np.log(1 - (np.arange(self.steps) / self.steps) ** 2)
 
-        if self.cacheDir and not self.cacheDir in self.earlyResultsPath:
-            np.save(os.path.join(self.cacheDir, f"newco_{self.nsamples}_{self.nbins}.npy", self.newco))
+        if self.cache_dir and not self.cache_dir in self.earlyResultsPath:
+            np.save(os.path.join(
+                self.cache_dir, f"correction_{self.samples}_{self.bins}.npy", self.correction))
 
-        if self.folderName and not self.folderName in self.earlyResultsPath:
-            np.save(os.path.join(self.folderName, f"correction_{self.nbins}.npy", self.newco))
+        if self.folder_name and not self.folder_name in self.earlyResultsPath:
+            np.save(os.path.join(self.folder_name,
+                    f"correction_{self.bins}.npy", self.correction))
 
-        if self.folderName or self.display:
+        if self.folder_name or self.display:
             # this is needed to get an estimate of the size of the bias we are correcting
-            weights = np.zeros_like(self.trueval)
-            weights[:-1] += 0.5 * (self.trueval[1:] - self.trueval[:-1])
+            weights = np.zeros_like(self.true_value)
+            weights[:-1] += 0.5 * (self.true_value[1:] - self.true_value[:-1])
             weights[1:] += weights[:-1]
             deviation = np.sqrt(
-                np.average(np.square(correction[:] - self.trueval[:]), weights=weights)
+                np.average(
+                    np.square(correction[:] - self.true_value[:]), weights=weights)
             )
 
             plt.title(f"RMS correction: {deviation:.4}")
-            plt.plot(self.trueval, correction)
-            plt.plot(self.trueval, self.newco)
+            plt.plot(self.true_value, correction)
+            plt.plot(self.true_value, self.correction)
             plt.plot(
-                [min(self.trueval), max(self.trueval)],
-                [min(self.trueval), max(self.trueval)],
+                [min(self.true_value), max(self.true_value)],
+                [min(self.true_value), max(self.true_value)],
                 ":k",
             )
             plt.xlabel("True MI")
             plt.ylabel("Estimated MI")
-            if self.folderName and not os.path.isfile(f"{self.folderName}/correctionMap_{self.nbins}.pdf"):
-                plt.savefig(f"{self.folderName}/correctionMap_{self.nbins}.pdf", bbox_inches="tight")
+            if self.folder_name and not os.path.isfile(f"{self.folder_name}/correctionMap_{self.bins}.pdf"):
+                plt.savefig(
+                    f"{self.folder_name}/correctionMap_{self.bins}.pdf", bbox_inches="tight")
             if self.display:
                 plt.show()
             else:
                 plt.close()
 
-    def _correctI(self, I):
-        ind = np.argmin(np.abs(I - self.newco))
-        return self.trueval[ind]
+    def _correct(self, I):
+        index = np.argmin(np.abs(I - self.correction))
+        return self.true_value[index]
