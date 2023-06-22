@@ -97,19 +97,21 @@ class Corrector:
         self.correct = lambda x: correct_vector(
             x, self.correction, self.true_value)
 
+        self.out_file = f"correction_{self.samples}_{self.bins}.npy"
+
         self.__retrieve(retrieve)
 
     def __retrieve(self, retrieve):
         self.earlyResultsPath = None
 
-        if self.folder_name is not None and os.path.isfile(os.path.join(self.folder_name, f"correction_{self.bins}.npy")):
+        if self.folder_name is not None and os.path.isfile(os.path.join(self.folder_name, self.out_file)):
             self.earlyResultsPath = os.path.join(
-                self.folder_name, f"correction_{self.bins}.npy")
+                self.folder_name, self.out_file)
             return
 
-        if self.cache_dir is not None and os.path.isfile(os.path.join(self.cache_dir, f"correction_{self.samples}_{self.bins}.npy")):
+        if self.cache_dir is not None and os.path.isfile(os.path.join(self.cache_dir, self.out_file)):
             self.earlyResultsPath = os.path.join(
-                self.cache_dir, f"correction_{self.samples}_{self.bins}.npy")
+                self.cache_dir, self.out_file)
             return
 
         if not retrieve or self.folder_name is None:
@@ -120,10 +122,10 @@ class Corrector:
                 with open(os.path.join(fold, "shape.json")) as fp:
                     shape = json.load(fp)
                     if shape[0] == self.samples:
-                        if os.path.isfile(os.path.join(fold, f"correction_{self.bins}.npy")):
+                        if os.path.isfile(os.path.join(fold, self.out_file)):
                             print("Retrieving correction from: ", fold)
                             self.earlyResultsPath = os.path.join(
-                                fold, f"correction_{self.bins}.npy")
+                                fold, self.out_file)
                             return
 
     def compute_correction(self):
@@ -171,11 +173,11 @@ class Corrector:
 
         if self.cache_dir and not self.cache_dir in self.earlyResultsPath:
             np.save(os.path.join(
-                self.cache_dir, f"correction_{self.samples}_{self.bins}.npy", self.correction))
+                self.cache_dir, self.out_file, self.correction))
 
         if self.folder_name and not self.folder_name in self.earlyResultsPath:
             np.save(os.path.join(self.folder_name,
-                    f"correction_{self.bins}.npy", self.correction))
+                    self.out_file, self.correction))
 
         if self.folder_name or self.display:
             # this is needed to get an estimate of the size of the bias we are correcting

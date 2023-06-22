@@ -3,13 +3,14 @@ import argparse
 from .nonlinearestimator import NonLinearEstimator
 from .corrector import Corrector
 
+
 def main():
     parser = argparse.ArgumentParser(
         prog="MIENC", description="Mutual Information Estimation for Non-linear Contribution.", epilog="COBRA, Giulio Tani Raffaelli, 2023")
     parser.add_argument('--version', action='version', version='%(prog)s 1.0')
-    parser.add_argument('-c', type=str, metavar='config', dest="config_file",
-                        help="Path to an alternate config file.")
-    parser.add_argument('-m', type=str, metavar='cache', dest="cache_dir",
+    parser.add_argument('-i', type=str, metavar='config.ini', dest="config_file",
+                        help="Path to an alternate config.ini file.")
+    parser.add_argument('-c', type=str, metavar='cache', dest="cache_dir",
                         help="Path to a cache folder for maps.")
     parser.add_argument('-d', type=str, metavar='dataset', dest="dataset",
                         help="Name of the dataset to be processed, overrides the corresponding option in the config file.")
@@ -33,7 +34,7 @@ def main():
                         help="If to add a tiny amount of jitter to data.")
     parser.add_argument('-O', dest="ortho", action="store_true",
                         help="If to orthogonalise the input.")
-    
+
     args = parser.parse_args()
 
     estimator = NonLinearEstimator(
@@ -50,7 +51,6 @@ def main():
         dataset_sub=args.dataset_sub,
         truncate_input=args.truncate,
         workers=args.workers
-        )
-    
+    )
+
     estimator.estimate()
-    

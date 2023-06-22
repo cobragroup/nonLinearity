@@ -377,26 +377,3 @@ class NonLinearEstimator:
             plt.show()
         else:
             plt.close()
-
-
-if __name__ == "__main__":
-    from cli import parser
-
-    args = parser.parse_args()
-
-    estimator = NonLinearEstimator(
-        config_file=args.config_file,
-        bins=args.bins,
-        surrogates=args.surrogates,
-        cache=args.cache_dir,
-        save_out=args.save_out,
-        suffix=args.suffix,
-        retrieve=args.retrieve,
-        jitter=args.jitter,
-        ortho=args.ortho,
-        dataset=args.dataset,
-        dataset_sub=args.dataset_sub,
-        truncate_input=args.truncate,
-        workers=args.workers
-    )
-    estimator.estimate()
