@@ -22,12 +22,12 @@ from innovationOrthogonalization import innOr
 class NonLinearEstimator:
     statsNames = ["totalMI", "gaussMI", "sigmaGaussMI", "ratio95control", "ratio99control", "ratio05", "ratio95", "ratio99"]
 
-    def __init__(self, configFile=None, nbins=None, Nsurrogates=None, cache=None, savenpy=False, suffix="", retrieve=True, jitter=False, ortho=False, dataset=None, regions="", truncateInput=None, workers=None):
+    def __init__(self, configFile=None, nbins=None, Nsurrogates=None, cache=None, savenpy=False, suffix="", retrieve=True, jitter=False, ortho=False, dataset=None, dataset_sub="", truncateInput=None, workers=None):
         self.savenpy = savenpy
         self.suffix = suffix
         self.retrieve = retrieve
         self.dataset = dataset
-        self.regions = regions
+        self.dataset_sub = dataset_sub
         self.truncateInput = truncateInput
         self.cacheDir = cache
 
@@ -87,36 +87,36 @@ class NonLinearEstimator:
             self.ouputFolder = None
             self.nbins = None
 
-    def __read_config_dataset (self, regions=None, truncateInput=None, dataset=None, **kwargs):
+    def __read_config_dataset (self, dataset_sub=None, truncateInput=None, dataset=None, **kwargs):
         if dataset is not None:
             self.dataset = dataset
-        if regions is not None:
-            self.regions = regions
+        if dataset_sub is not None:
+            self.dataset_sub = dataset_sub
         if truncateInput is not None:
             self.truncateInput = truncateInput
         assert self.config is not None, "When not passing data directly, a valid config.ini file is necessary."
-        self.config['DEFAULT']['regions'] = self.regions
+        self.config['DEFAULT']['dataset_sub'] = self.dataset_sub
 
-        if dataset is None:
-            dataset = self.config.get("global", "dataset", fallback=None)
-        assert dataset is not None, "Unspecified dataset in .ini file."
+        if self.dataset is None:
+            self.dataset = self.config.get("global", "dataset", fallback=None)
+        assert self.dataset is not None, "Unspecified dataset in .ini file."
         assert self.config.has_section(
-            dataset), "The details for the specified dataset are missing in .ini file."
+            self.dataset), "The details for the specified dataset are missing in .ini file."
         
-        filePath = self.config.get(dataset, "filePath", fallback=None)
+        filePath = self.config.get(self.dataset, "filePath", fallback=None)
         assert filePath is not None, "Missing dataset file path in .ini file."
         
-        fileName = self.config.get(dataset, "fileName", fallback=None)
+        fileName = self.config.get(self.dataset, "fileName", fallback=None)
         assert fileName is not None, "Missing dataset filename in .ini file."
         
-        self.fieldName = self.config.get(dataset, "fieldName", fallback=None)
+        self.fieldName = self.config.get(self.dataset, "fieldName", fallback=None)
         if self.fieldName is None:
             warn("Missing dataset fieldname in .ini file. Trying with euristics.")
         
         hc_start = self.config.getint(
-            dataset, "healthy_control_start", fallback=None)
+            self.dataset, "healthy_control_start", fallback=None)
         hc_start = hc_start if hc_start else None
-        hc_end = self.config.getint(dataset, "healthy_control_end", fallback=None)
+        hc_end = self.config.getint(self.dataset, "healthy_control_end", fallback=None)
         hc_end = hc_end if hc_end else None
         self.hc_slice = slice(hc_start, hc_end)
 
@@ -202,13 +202,16 @@ class NonLinearEstimator:
         print(f"Output saved in: {self.folderName}")
         self.savenpy = True
 
-    def estimate(self, data=None, savenpy=None, retrieve=None, display=None, **kwargs):
+    def estimate(self, data=None, savenpy=None, retrieve=None, display=None, truncateInput=None, **kwargs):
+        assert (data is not None) != bool(self.dataset or ("dataset" in kwargs and bool(kwargs["dataset"]))), f"You can't pass data and a dataset name at the same time. Data: {len(data.shape)}-D array, dataset: '{self.dataset if self.dataset else kwargs['dataset']}'."
         if savenpy is not None:
             self.savenpy = savenpy
         if retrieve is not None:
             self.retrieve = retrieve
         if display is not None:
             self.display = display
+        if truncateInput is not None:
+            self.truncateInput = truncateInput
 
         if  self.savenpy:
             self.__output_folder(**kwargs)
@@ -216,7 +219,7 @@ class NonLinearEstimator:
             self.folderName = None
 
         self.load_data(data=data, **kwargs)
-        print(self.folderName, self.cacheDir)
+
         self.corrector = Corrector(
             self.nbins,
             folderName=self.folderName,
@@ -308,14 +311,14 @@ class NonLinearEstimator:
                                     self.globalStats[key+"shadow"].append(val)
 
                     if plottingNeeded:
-                        self._smile_plot(patientN, corr, statsMI)
+                        self._smile_plot(patientN, corr, statsMI, extended_stats, compute_shadow)
 
                 if self.folderName is not None:
                     with open(os.path.join(self.folderName, os.path.split(self.folderName)[1]+"_globalStats.json"), "w") as fp:
                         json.dump(self.globalStats, fp)
         return {k: np.array(v) if len(v)>1 else v[0] for k,v in self.globalStats.items()}
 
-    def _smile_plot(self, patientN, corr, statsMI):
+    def _smile_plot(self, patientN, corr, statsMI, extended_stats, compute_shadow):
         correctedperc01pointer = (self.Nsurrogates * (0.01) - 0.5) / (
             self.Nsurrogates - 1
         )
@@ -336,7 +339,12 @@ class NonLinearEstimator:
         plt.plot(corr[neworder], perc99_PLOT[neworder], "g")
         plt.xlabel("correlation")
         plt.ylabel("mutual information (nats)")
-        title = f"Patient {patientN} - {self.globalStats['globaltotalMI'][patientN]:.3}/{self.globalStats['globalgaussMI'][patientN]:.3} (^{self.globalStats['globalratio95'][patientN]:.3}-{self.globalStats['globalratio95'][patientN]:.3}_{self.globalStats['globalratio95shadow'][patientN]:.3})"
+        title = f"Patient {patientN} $-$ $MI_T:${self.globalStats['totalMI'][patientN]:.3} vs $MI_G:${self.globalStats['gaussMI'][patientN]:.3}" 
+        if extended_stats:
+            title += f"({self.globalStats['ratio95'][patientN]:.3}>95%"
+            if compute_shadow:
+                title += f"$-$ {self.globalStats['ratio95shadow'][patientN]:.3}>95% shadow"
+            title += ")"
         plt.title(title)
         plt.ylim(bottom=0)
         if self.folderName is not None and not os.path.isfile(

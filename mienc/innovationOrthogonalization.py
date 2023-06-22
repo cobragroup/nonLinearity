@@ -19,7 +19,7 @@ except ImportError as e:
     warnings.warn("'statsmodels' failed to load, impossible to fit the VAR, 'innor' won't work.\n"+e.msg)
     __loaded = False
 
-def innOr(Y: npt.NDArray, verbose: bool = False, all_matrices: bool = False) -> npt.NDArray:
+def innOr(Y: npt.NDArray, verbose: bool = False, all_matrices: bool = False, **kwargs) -> npt.NDArray:
     """Applies innovation orthogonalisation (Pascual-Marqui et al., 2017) to input data.
 
     Parameters
