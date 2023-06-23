@@ -21,7 +21,7 @@ class Corrector:
         iterations: int = None,
         samples: int = None,
         folder_name: str = None,
-        cache_dir: Union[str, bytes, os.PathLike] = None,
+        cache_dir: Union[str, bytes, os.PathLike] = "cache",
         workers: int = 1,
         ensure_monotonic: bool = True,
         display: bool = False,
