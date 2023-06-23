@@ -31,13 +31,8 @@ class NonLinearEstimator:
         self.dataset_sub = dataset_sub
         self.truncate_input = truncate_input
         self.cacheDir = cache
-
-        if isinstance(save_out, int):
-            self.stop_saving = save_out
-            self.save_out = True
-        else:
-            self.stop_saving = None
-            self.save_out = save_out
+        self.base_save_out = save_out
+        self.save_out = save_out
 
         self.__read_config(config_file)
 
@@ -86,7 +81,7 @@ class NonLinearEstimator:
                 self.workers = self.config.getint(
                     thisHost, "workers", fallback=self.workers)
                 self.output_folder = self.config.get(
-                    thisHost, "outputFolder", fallback=self.output_folder)
+                    thisHost, "output_folder", fallback=self.output_folder)
             if not os.path.isabs(self.output_folder):
                 self.output_folder = os.path.abspath(
                     os.path.join(path, self.output_folder))
@@ -181,9 +176,6 @@ class NonLinearEstimator:
             self.mat += np.random.normal(0, spa*jitter, self.mat.shape)
 
         self.duration, self.regions, self.sessions = self.mat.shape
-        if self.folder_name is not None:
-            with open(os.path.join(self.folder_name, "shape.json"), "w") as fp:
-                json.dump(self.mat.shape, fp)
 
         print(
             "Loaded data matrix: {} samples by {} regions by {} sessions".format(
@@ -195,7 +187,7 @@ class NonLinearEstimator:
         if self.stop_saving is None:
             self.stop_saving = self.sessions
 
-    def __output_folder(self, suffix, **kwargs):
+    def __output_folder(self, suffix=None, **kwargs):
         if suffix is not None:
             self.suffix = suffix
 
@@ -206,6 +198,8 @@ class NonLinearEstimator:
                 nameParts = ["".join(map(chr, np.random.randint(65, 91, 7)))]
             else:
                 nameParts = [str(self.save_out)]
+                self.save_out = True
+                self.base_save_out = True
         if self.suffix:
             nameParts.append(str(self.suffix))
         nameParts.append(f"bin{self.bins}")
@@ -218,13 +212,20 @@ class NonLinearEstimator:
         if not os.path.isdir(self.folder_name):
             os.makedirs(self.folder_name)
         print(f"Output saved in: {self.folder_name}")
-        self.save_out = True
 
     def estimate(self, data=None, save_out=None, retrieve=None, display=None, truncate_input=None, **kwargs):
         assert (data is not None) != bool(self.dataset or ("dataset" in kwargs and bool(
             kwargs["dataset"]))), f"You can't pass data and a dataset name at the same time. Data: {len(data.shape)}-D array, dataset: '{self.dataset if self.dataset else kwargs['dataset']}'."
         if save_out is not None:
             self.save_out = save_out
+
+        if isinstance(self.save_out, int):
+            self.stop_saving = self.save_out
+            self.base_save_out = True
+        else:
+            self.stop_saving = None
+            self.base_save_out = self.save_out
+
         if retrieve is not None:
             self.retrieve = retrieve
         if display is not None:
@@ -232,12 +233,14 @@ class NonLinearEstimator:
         if truncate_input is not None:
             self.truncate_input = truncate_input
 
+        self.load_data(data=data, **kwargs)
+
         if self.save_out:
             self.__output_folder(**kwargs)
+            with open(os.path.join(self.folder_name, "shape.json"), "w") as fp:
+                json.dump(self.mat.shape, fp)
         else:
             self.folder_name = None
-
-        self.load_data(data=data, **kwargs)
 
         self.corrector = Corrector(
             self.bins,
@@ -252,7 +255,7 @@ class NonLinearEstimator:
         )
         self.corrector.compute_correction()
 
-        return self.do_estimate(**kwargs)
+        return self._do_estimate(**kwargs)
 
     def _single_subject_numeric(self, subject: int, pool: Union[pool_type, a_normal_map], compute_shadow: bool):
         if self.folder_name is not None:
@@ -297,7 +300,8 @@ class NonLinearEstimator:
 
         return true_and_surrogate_MI, true_and_surrogate_MI_shadow, correlation
 
-    def do_estimate(self, extended_stats=False, compute_shadow=False, **kwargs):
+    def _do_estimate(self, extended_stats=False, compute_shadow=False, **kwargs):
+        self.save_out = self.base_save_out
         tmp_statsNames = self.statsNames if extended_stats else self.statsNames[:3]
         if self.folder_name is not None and os.path.isfile(os.path.join(self.folder_name, "global_stats.json")):
             with open(os.path.join(self.folder_name, "global_stats.json")) as fp:
@@ -353,7 +357,7 @@ class NonLinearEstimator:
         corrected_percentile99pointer = (self.surrogates * (0.99) - 0.5) / (
             self.surrogates - 1
         )
-        corrected_statsMI = self.corrector.correctI(true_and_surrogate_MI)
+        corrected_statsMI = self.corrector.correct(true_and_surrogate_MI)
         pair_gauss_mi = np.mean(corrected_statsMI[:, 1:], 1)
         percentile01_PLOT, percentile99_PLOT = np.quantile(
             corrected_statsMI[:, 1:], [corrected_percentile01pointer, corrected_percentile99pointer], 1)
