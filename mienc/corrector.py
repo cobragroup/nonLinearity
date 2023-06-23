@@ -23,7 +23,7 @@ class Corrector:
         folder_name: str = None,
         cache_dir: Union[str, bytes, os.PathLike] = None,
         workers: int = 1,
-        smoothed: bool = False,
+        ensure_monotonic: bool = True,
         display: bool = False,
         retrieve: bool = True,
         config: Union[str, configparser.ConfigParser] = None,
@@ -86,7 +86,7 @@ class Corrector:
             )
         self.folder_name = folder_name
 
-        self.smoothed = smoothed
+        self.ensure_monotonic = ensure_monotonic
         self.display = display
         self.workers = workers
         if self.workers > 1:
@@ -153,20 +153,27 @@ class Corrector:
                     )
                     correction[i] = np.average(I)
 
-            if self.smoothed:
-                for_smoothing = np.zeros(correction.shape[0]+4)
-                for_smoothing[:2] = correction[0]
-                for_smoothing[2, -2] = correction
-                for_smoothing[-2:] = correction[-1]
+            last_decreasing = np.argmax(np.cumsum(np.diff(correction)<0))
+            if self.ensure_monotonic and last_decreasing > 0:
+                fit_order = 1 if last_decreasing<10 else 2
+                fit = np.polyfit(self.true_value[:last_decreasing+3],correction[:last_decreasing+3], fit_order)
 
-                self.correction = np.zeros_like(correction)
-                for i in range(len(correction)):
-                    self.correction[i] = np.mean(for_smoothing[i: i + 5])
-                if self.display:
+                self.correction = correction.copy()
+                self.correction[:last_decreasing+3] = np.polyval(fit, self.true_value[:last_decreasing+3])
+                if self.folder_name or self.display:
                     try:
-                        plt.plot(correction[:50])
-                        plt.plot(self.correction[:50])
-                        plt.show()
+                        plt.plot(correction[:last_decreasing+3], self.true_value[:last_decreasing+3],".-", label="Original", lw=1)
+                        plt.plot(self.correction[:last_decreasing+3], self.true_value[:last_decreasing+3],".-", label="Monotonic", lw=1)
+                        plt.ylabel("True MI")
+                        plt.xlabel("Estimated MI")
+                        plt.legend()
+                        if self.folder_name and not os.path.isfile(f"{self.folder_name}/correctionMap_{self.bins}.pdf"):
+                            plt.savefig(
+                                f"{self.folder_name}/monotinisationMap_{self.bins}.pdf", bbox_inches="tight")
+                        if self.display:
+                            plt.show()
+                        else:
+                            plt.close()
                     except:
                         pass
             else:
@@ -194,15 +201,15 @@ class Corrector:
             )
 
             plt.title(f"RMS correction: {deviation:.4}")
-            plt.plot(self.true_value, correction)
-            plt.plot(self.true_value, self.correction)
+            plt.plot(correction, self.true_value)
+            plt.plot(self.correction, self.true_value)
             plt.plot(
                 [min(self.true_value), max(self.true_value)],
                 [min(self.true_value), max(self.true_value)],
                 ":k",
             )
-            plt.xlabel("True MI")
-            plt.ylabel("Estimated MI")
+            plt.ylabel("True MI")
+            plt.xlabel("Estimated MI")
             if self.folder_name and not os.path.isfile(f"{self.folder_name}/correctionMap_{self.bins}.pdf"):
                 plt.savefig(
                     f"{self.folder_name}/correctionMap_{self.bins}.pdf", bbox_inches="tight")
