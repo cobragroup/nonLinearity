@@ -13,7 +13,6 @@ import configparser
 import json
 import scipy.io as sio
 from warnings import warn
-import sys
 import os
 import socket
 from typing import Union

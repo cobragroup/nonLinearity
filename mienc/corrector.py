@@ -57,15 +57,18 @@ class Corrector:
             if self.config.has_section(this_host):
                 self.cache_dir = self.config.get(
                     this_host, "cacheDir", fallback=self.cache_dir)
-
-            path = os.path.dirname(os.path.realpath(__file__))
-            if self.cache_dir is not None and not os.path.isdir(self.cache_dir) and os.path.isdir(os.path.join(path, self.cache_dir)):
-                self.cache_dir = os.path.join(path, self.cache_dir)
+        else:
+            self.steps = None
+            self.iterations = None
+            self.samples = None
+            self.cache_dir = None
 
         if cache_dir is not None:
             self.cache_dir = cache_dir
-            if self.cache_dir is not None and not os.path.isdir(self.cache_dir) and os.path.isdir(os.path.join(path, self.cache_dir)):
-                self.cache_dir = os.path.join(path, self.cache_dir)
+
+        path = os.path.dirname(os.path.realpath(__file__))
+        if self.cache_dir is not None and not os.path.isdir(self.cache_dir) and os.path.isdir(os.path.join(path, self.cache_dir)):
+            self.cache_dir = os.path.join(path, self.cache_dir)
 
         if steps is not None:
             self.steps = steps
@@ -131,6 +134,10 @@ class Corrector:
     def compute_correction(self):
         """Computes the correction lookup table or loads the cached values."""
         incre = 1 / self.steps
+
+        self.true_value = -0.5 * \
+            np.log(1 - (np.arange(self.steps) / self.steps) ** 2)
+
         correction = np.zeros(self.steps)
         if self.earlyResultsPath is None:
             with self.pool(self.workers) as pool:
@@ -147,14 +154,14 @@ class Corrector:
                     correction[i] = np.average(I)
 
             if self.smoothed:
-                tosmo = np.zeros(correction.shape[0]+4)
-                tosmo[:2] = correction[0]
-                tosmo[2, -2] = correction
-                tosmo[-2:] = correction[-1]
+                for_smoothing = np.zeros(correction.shape[0]+4)
+                for_smoothing[:2] = correction[0]
+                for_smoothing[2, -2] = correction
+                for_smoothing[-2:] = correction[-1]
 
                 self.correction = np.zeros_like(correction)
                 for i in range(len(correction)):
-                    self.correction[i] = np.mean(tosmo[i: i + 5])
+                    self.correction[i] = np.mean(for_smoothing[i: i + 5])
                 if self.display:
                     try:
                         plt.plot(correction[:50])
@@ -168,16 +175,13 @@ class Corrector:
             self.correction = np.load(self.earlyResultsPath)
             correction = self.correction
 
-        self.true_value = -0.5 * \
-            np.log(1 - (np.arange(self.steps) / self.steps) ** 2)
-
-        if self.cache_dir and not self.cache_dir in self.earlyResultsPath:
+        if self.cache_dir and not self.cache_dir == self.earlyResultsPath:
             np.save(os.path.join(
-                self.cache_dir, self.out_file, self.correction))
+                self.cache_dir, self.out_file), self.correction)
 
-        if self.folder_name and not self.folder_name in self.earlyResultsPath:
+        if self.folder_name and not self.folder_name == self.earlyResultsPath:
             np.save(os.path.join(self.folder_name,
-                    self.out_file, self.correction))
+                    self.out_file), self.correction)
 
         if self.folder_name or self.display:
             # this is needed to get an estimate of the size of the bias we are correcting
