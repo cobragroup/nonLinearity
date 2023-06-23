@@ -23,15 +23,21 @@ class NonLinearEstimator:
     statsNames = ["totalMI", "gaussMI", "sigmaGaussMI", "ratio95control",
                   "ratio99control", "ratio05", "ratio95", "ratio99"]
 
-    def __init__(self, config_file: Union[str, bytes, os.PathLike] = None, bins: int = None, surrogates: int = None, cache: Union[str, bytes, os.PathLike] = "cache", save_out: Union[bool, str, bytes, os.PathLike] = False, suffix: str = "", retrieve: bool = True, jitter: Union[bool, float] = False, ortho: bool = False, dataset: str = None, dataset_sub: str = "", truncate_input: int = None, workers: int = None):
+    def __init__(self, config_file: Union[str, bytes, os.PathLike] = None, bins: int = None, surrogates: int = None, cache: Union[str, bytes, os.PathLike] = "cache", save_out: Union[bool, str, bytes, os.PathLike,int] = False, suffix: str = "", retrieve: bool = True, jitter: Union[bool, float] = False, ortho: bool = False, dataset: str = None, dataset_sub: str = "", truncate_input: int = None, workers: int = None):
 
-        self.save_out = save_out
         self.suffix = suffix
         self.retrieve = retrieve
         self.dataset = dataset
         self.dataset_sub = dataset_sub
         self.truncate_input = truncate_input
         self.cacheDir = cache
+
+        if isinstance(save_out, int):
+            self.stop_saving = save_out
+            self.save_out = True
+        else:
+            self.stop_saving = None
+            self.save_out = save_out
 
         self.__read_config(config_file)
 
@@ -174,18 +180,20 @@ class NonLinearEstimator:
             spa = np.sort(np.diff(np.sort(self.mat[:, 0, 0])))[0]
             self.mat += np.random.normal(0, spa*jitter, self.mat.shape)
 
-        duration, self.regions, self.sessions = self.mat.shape
+        self.duration, self.regions, self.sessions = self.mat.shape
         if self.folder_name is not None:
             with open(os.path.join(self.folder_name, "shape.json"), "w") as fp:
                 json.dump(self.mat.shape, fp)
 
         print(
             "Loaded data matrix: {} samples by {} regions by {} sessions".format(
-                duration, self.regions, self.sessions
+                self.duration, self.regions, self.sessions
             )
         )
 
         self.pairNum = int((self.regions * (self.regions - 1)) / 2)
+        if self.stop_saving is None:
+            self.stop_saving = self.sessions
 
     def __output_folder(self, suffix, **kwargs):
         if suffix is not None:
@@ -239,7 +247,7 @@ class NonLinearEstimator:
             display=self.display,
             retrieve=self.retrieve,
             config=self.config,
-            duration=self.mat.shape[0],
+            duration=self.duration,
             **kwargs
         )
         self.corrector.compute_correction()
@@ -303,6 +311,8 @@ class NonLinearEstimator:
         with self.pool(self.workers) as pool:
             for subject in tqdm(range(self.sessions), desc=f"Subject", leave=True):
 
+                if subject >= self.stop_saving:
+                    self.save_out = False
                 globalStatsComputedSubjects = min(
                     map(len, self.global_stats.values()))
                 globalsToBeComputed = globalStatsComputedSubjects < subject+1
