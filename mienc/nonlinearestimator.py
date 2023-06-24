@@ -22,7 +22,7 @@ class NonLinearEstimator:
     statsNames = ["totalMI", "gaussMI", "sigmaGaussMI", "ratio95control",
                   "ratio99control", "ratio05", "ratio95", "ratio99"]
 
-    def __init__(self, config_file: Union[str, bytes, os.PathLike] = None, bins: int = None, surrogates: int = None, cache: Union[str, bytes, os.PathLike] = "cache", save_out: Union[bool, str, bytes, os.PathLike,int] = False, suffix: str = "", retrieve: bool = True, jitter: Union[bool, float] = False, ortho: bool = False, dataset: str = None, dataset_sub: str = "", truncate_input: int = None, workers: int = None):
+    def __init__(self, config_file: Union[str, bytes, os.PathLike] = None, bins: int = None, surrogates: int = None, cache: Union[str, bytes, os.PathLike] = "cache", save_out: Union[bool, str, bytes, os.PathLike, int] = False, suffix: str = "", retrieve: bool = True, jitter: Union[bool, float] = False, ortho: bool = False, dataset: str = None, dataset_sub: str = "", truncate_input: int = None, workers: int = None):
 
         self.suffix = suffix
         self.retrieve = retrieve

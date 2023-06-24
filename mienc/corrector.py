@@ -148,23 +148,27 @@ class Corrector:
                     )
                     correction[i] = np.average(I)
 
-            last_decreasing = np.argmax(np.cumsum(np.diff(correction)<0))
+            last_decreasing = np.argmax(np.cumsum(np.diff(correction) < 0))
             if self.ensure_monotonic and last_decreasing > 0:
-                fit_order = 1 if last_decreasing<10 else 2
-                fit = np.polyfit(self.true_value[:last_decreasing+3],correction[:last_decreasing+3], fit_order)
+                fit_order = 1 if last_decreasing < 10 else 2
+                fit = np.polyfit(
+                    self.true_value[:last_decreasing+3], correction[:last_decreasing+3], fit_order)
 
                 self.correction = correction.copy()
-                self.correction[:last_decreasing+3] = np.polyval(fit, self.true_value[:last_decreasing+3])
+                self.correction[:last_decreasing +
+                                3] = np.polyval(fit, self.true_value[:last_decreasing+3])
                 if self.folder_name or self.display:
                     try:
-                        plt.plot(correction[:last_decreasing+3], self.true_value[:last_decreasing+3],".-", label="Original", lw=1)
-                        plt.plot(self.correction[:last_decreasing+3], self.true_value[:last_decreasing+3],".-", label="Monotonic", lw=1)
+                        plt.plot(
+                            correction[:last_decreasing+3], self.true_value[:last_decreasing+3], ".-", label="Original", lw=1)
+                        plt.plot(
+                            self.correction[:last_decreasing+3], self.true_value[:last_decreasing+3], ".-", label="Monotonic", lw=1)
                         plt.ylabel("True MI")
                         plt.xlabel("Estimated MI")
                         plt.legend()
-                        if self.folder_name and not os.path.isfile(f"{self.folder_name}/correctionMap_{self.bins}.pdf"):
+                        if self.folder_name:
                             plt.savefig(
-                                f"{self.folder_name}/monotinisationMap_{self.bins}.pdf", bbox_inches="tight")
+                                f"{self.folder_name}/monotonisationMap_{self.bins}.pdf", bbox_inches="tight")
                         if self.display:
                             plt.show()
                         else:
