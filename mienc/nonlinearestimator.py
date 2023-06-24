@@ -2,12 +2,11 @@
 # This package contains some useful code
 
 from .innovationOrthogonalization import innOr
-from .support import total_mutual_information, surrogate, task_producer, statistics, fake_pool, a_normal_map, adjust_jitter
+from .support import total_mutual_information, surrogate, task_producer, statistics, get_pool, a_normal_map, adjust_jitter
 from .corrector import Corrector
 import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
-import multiprocessing as mp
 from multiprocessing.pool import Pool as pool_type
 import configparser
 import json
@@ -52,10 +51,6 @@ class NonLinearEstimator:
         assert self.surrogates is not None, "Number of surrogates undefined, can't create the NonLinearEstimator"
         if self.workers is None:
             self.workers = 1
-        if self.workers > 1:
-            self.pool = mp.Pool
-        else:
-            self.pool = fake_pool
 
     def __read_config(self, config_file):
         if config_file is None:
@@ -312,7 +307,7 @@ class NonLinearEstimator:
                 self.global_stats.update({name+"shadow": []
                                          for name in tmp_statsNames})
 
-        with self.pool(self.workers) as pool:
+        with get_pool(self.workers) as pool:
             for subject in tqdm(range(self.sessions), desc=f"Subject", leave=True):
 
                 if subject >= self.stop_saving:

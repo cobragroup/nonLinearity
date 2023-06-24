@@ -5,6 +5,7 @@ import os
 from ctypes import c_int, cdll, POINTER, c_double, Structure, c_bool
 from typing import Union
 from contextlib import contextmanager
+import multiprocessing as mp
 
 el_path = os.path.abspath(os.path.dirname(__file__))
 _libMI = cdll.LoadLibrary(os.path.join(el_path, '../bin/libpmi.so'))
@@ -153,8 +154,11 @@ class a_normal_map ():
 
 
 @contextmanager
-def fake_pool (*args, **kwargs):
+def get_pool (workers, **kwargs):
     try:
-        yield a_normal_map()
+        if workers == 1:
+            yield a_normal_map()
+        else:
+            yield mp.Pool(workers)
     finally:
         pass

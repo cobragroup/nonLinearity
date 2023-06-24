@@ -1,8 +1,7 @@
-from .support import single_iter, correct_vector, fake_pool
+from .support import single_iter, correct_vector, get_pool
 import os
 from tqdm import tqdm
 import matplotlib.pyplot as plt
-import multiprocessing as mp
 import numpy as np
 import glob
 import json
@@ -89,10 +88,6 @@ class Corrector:
         self.ensure_monotonic = ensure_monotonic
         self.display = display
         self.workers = workers
-        if self.workers > 1:
-            self.pool = mp.Pool
-        else:
-            self.pool = fake_pool
 
         self.correction = None
         self.true_value = None
@@ -140,7 +135,7 @@ class Corrector:
 
         correction = np.zeros(self.steps)
         if self.earlyResultsPath is None:
-            with self.pool(self.workers) as pool:
+            with get_pool(self.workers) as pool:
                 for i in tqdm(range(self.steps), "Computing correction"):
                     means = 0, 0
                     corre = [[1, i * incre], [i * incre, 1]]
