@@ -30,7 +30,6 @@ class NonLinearEstimator:
         self.dataset_sub = dataset_sub
         self.truncate_input = truncate_input
         self.cacheDir = cache
-        self.base_save_out = save_out
         self.save_out = save_out
 
         self.__read_config(config_file)
@@ -179,7 +178,7 @@ class NonLinearEstimator:
         )
 
         self.pairNum = int((self.regions * (self.regions - 1)) / 2)
-        if self.stop_saving is None:
+        if self.stop_saving is True:
             self.stop_saving = self.sessions
 
     def __output_folder(self, suffix=None, **kwargs):
@@ -194,7 +193,6 @@ class NonLinearEstimator:
             else:
                 nameParts = [str(self.save_out)]
                 self.save_out = True
-                self.base_save_out = True
         if self.suffix:
             nameParts.append(str(self.suffix))
         nameParts.append(f"bin{self.bins}")
@@ -216,10 +214,9 @@ class NonLinearEstimator:
 
         if isinstance(self.save_out, int):
             self.stop_saving = self.save_out
-            self.base_save_out = True
         else:
-            self.stop_saving = None
-            self.base_save_out = self.save_out
+            self.stop_saving = bool(self.save_out)
+        self.base_save_out = self.stop_saving
 
         if retrieve is not None:
             self.retrieve = retrieve
@@ -236,6 +233,8 @@ class NonLinearEstimator:
                 json.dump(self.mat.shape, fp)
         else:
             self.folder_name = None
+
+        self.save_out = bool(self.save_out)
 
         self.corrector = Corrector(
             self.bins,
@@ -296,7 +295,6 @@ class NonLinearEstimator:
         return true_and_surrogate_MI, true_and_surrogate_MI_shadow, correlation
 
     def _do_estimate(self, extended_stats=False, compute_shadow=False, **kwargs):
-        self.save_out = self.base_save_out
         tmp_statsNames = self.statsNames if extended_stats else self.statsNames[:3]
         if self.folder_name is not None and os.path.isfile(os.path.join(self.folder_name, "global_stats.json")):
             with open(os.path.join(self.folder_name, "global_stats.json")) as fp:
@@ -321,7 +319,7 @@ class NonLinearEstimator:
                 plotAlreadyThere = self.folder_name is not None and os.path.isfile(os.path.join(
                     self.folder_name, f"subject{subject:02}_{self.bins}.pdf"))
                 plottingNeeded = (
-                    self.folder_name is not None and not plotAlreadyThere) or self.display
+                    self.folder_name is not None and self.save_out and not plotAlreadyThere) or self.display
 
                 if globalsToBeComputed or plottingNeeded:
                     true_and_surrogate_MI, true_and_surrogate_MI_shadow, corr = self._single_subject_numeric(
@@ -343,6 +341,7 @@ class NonLinearEstimator:
                 if self.folder_name is not None:
                     with open(os.path.join(self.folder_name, os.path.split(self.folder_name)[1]+"_globalStats.json"), "w") as fp:
                         json.dump(self.global_stats, fp)
+        self.save_out = self.base_save_out
         return {k: np.array(v) if len(v) > 1 else v[0] for k, v in self.global_stats.items()}
 
     def _smile_plot(self, subject: int, correlation: np.ndarray, true_and_surrogate_MI: np.ndarray, extended_stats: bool, compute_shadow: bool):
