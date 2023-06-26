@@ -177,6 +177,9 @@ class NonLinearEstimator:
             )
         )
 
+        if self.bins == 0:
+            self.bins = int(self.duration**(1/3))
+
         self.pairNum = int((self.regions * (self.regions - 1)) / 2)
         if self.stop_saving is True:
             self.stop_saving = self.sessions
