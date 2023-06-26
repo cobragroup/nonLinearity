@@ -34,6 +34,10 @@ def main():
                         help="If to add a tiny amount of jitter to data.")
     parser.add_argument('-O', dest="ortho", action="store_true",
                         help="If to orthogonalise the input.")
+    parser.add_argument('-W', dest="shadow", action="store_true",
+                        help="If to compute values for the shadow dataset.")
+    parser.add_argument('-F', dest="full_stats", action="store_true",
+                        help="If to compute extended stats for the MI.")
 
     args = parser.parse_args()
 
@@ -53,4 +57,4 @@ def main():
         workers=args.workers
     )
 
-    estimator.estimate()
+    estimator.estimate(extended_stats=args.full_stats, compute_shadow=args.shadow)

@@ -31,7 +31,7 @@ class Corrector:
         self.bins = bins
 
         if config is not None:
-            if isinstance(config, str) and os.path.isfile(config):
+            if isinstance(config, str):
                 try:
                     self.config = configparser.ConfigParser()
                     self.config.read(config)
@@ -45,10 +45,10 @@ class Corrector:
             self.config = None
 
         if self.config is not None:
-            self.steps = config.getint("correction", "steps", fallback=200)
-            self.iterations = config.getint(
+            self.steps = self.config.getint("correction", "steps", fallback=200)
+            self.iterations = self.config.getint(
                 "correction", "iters", fallback=10000)
-            self.samples = config.getint("correction", "nsamples", fallback=0)
+            self.samples = self.config.getint("correction", "nsamples", fallback=0)
             self.cache_dir = self.config.getint(
                 "correction", "cacheDir", fallback=None)
 
