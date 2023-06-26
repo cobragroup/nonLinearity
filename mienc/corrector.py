@@ -132,11 +132,11 @@ class Corrector:
 
         self.true_value = -0.5 * \
             np.log(1 - (np.arange(self.steps) / self.steps) ** 2)
-
         correction = np.zeros(self.steps)
         if self.earlyResultsPath is None:
+            print(f"Computing correction for {self.samples} samples and {self.bins} bins.")
             with get_pool(self.workers) as pool:
-                for i in tqdm(range(self.steps), "Computing correction"):
+                for i in tqdm(range(self.steps), "Step"):
                     means = 0, 0
                     corre = [[1, i * incre], [i * incre, 1]]
                     I = pool.map(
@@ -178,6 +178,7 @@ class Corrector:
             else:
                 self.correction = correction
         else:
+            print(f"Loading correction for {self.samples} samples and {self.bins} bins.")
             self.correction = np.load(self.earlyResultsPath)
             correction = self.correction
 
