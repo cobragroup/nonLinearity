@@ -166,8 +166,9 @@ class NonLinearEstimator:
             self.mat = tmp_mat
 
         if self.jitter:
-            spa = np.sort(np.diff(np.sort(self.mat[:, 0, 0])))[0]
-            self.mat += np.random.normal(0, spa*jitter, self.mat.shape)
+            diffs = np.diff(np.sort(self.mat[:, 0, 0]))
+            spa = np.min(diffs[diffs>0])
+            self.mat += np.random.normal(0, spa*self.jitter, self.mat.shape)
 
         self.duration, self.regions, self.sessions = self.mat.shape
 
