@@ -256,7 +256,7 @@ returnStats statistics(double *data, int numPairs, int numSurrogates, double *es
 
     result.totalMI = to_meanData[0] / numPairs;
     result.gaussMI = meanSurr / numPairs;
-    result.sigmaGaussMI = sqrt(sigma2 / numSurrogates) / numPairs;
+    result.sigmaGaussMI = sqrt(sigma2) / numSurrogates / numPairs;
 
     return result;
 }
