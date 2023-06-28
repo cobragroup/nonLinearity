@@ -96,8 +96,6 @@ class Corrector:
         self.correction = None
         self.true_value = None
         self.old_correct = np.vectorize(self._correct)
-        self.correct = lambda x: correct_vector(
-            x, self.correction, self.true_value)
 
         self.out_file = f"correction_{self.samples}_{self.bins}.npy"
 
@@ -191,11 +189,11 @@ class Corrector:
             self.correction = np.load(self.earlyResultsPath)
             correction = self.correction
 
-        if self.cache_dir and not self.cache_dir == self.earlyResultsPath:
+        if self.cache_dir and not self.cache_dir == self.earlyResultsPath and not os.path.isfile(os.path.join(self.cache_dir, self.out_file)):
             np.save(os.path.join(
                 self.cache_dir, self.out_file), self.correction)
 
-        if self.folder_name and not self.folder_name == self.earlyResultsPath:
+        if self.folder_name and not self.folder_name == self.earlyResultsPath and not os.path.isfile(os.path.join(self.folder_name, self.out_file)):
             np.save(os.path.join(self.folder_name,
                     self.out_file), self.correction)
 
@@ -230,3 +228,6 @@ class Corrector:
     def _correct(self, I):
         index = np.argmin(np.abs(I - self.correction))
         return self.true_value[index]
+
+    def correct (self, vec):
+        return correct_vector(vec, self.correction, self.true_value)
