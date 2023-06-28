@@ -22,7 +22,7 @@ class NonLinearEstimator:
     statsNames = ["totalMI", "gaussMI", "sigmaGaussMI", "ratio95control",
                   "ratio99control", "ratio05", "ratio95", "ratio99"]
 
-    def __init__(self, config_file: Union[str, bytes, os.PathLike] = None, bins: int = None, surrogates: int = None, cache: Union[str, bytes, os.PathLike] = "cache", save_out: Union[bool, str, bytes, os.PathLike, int] = False, suffix: str = "", retrieve: bool = True, jitter: Union[bool, float] = False, ortho: bool = False, dataset: str = None, dataset_sub: str = "", truncate_input: int = None, workers: int = None):
+    def __init__(self, config_file: Union[str, bytes, os.PathLike] = None, bins: int = None, surrogates: int = None, cache: Union[str, bytes, os.PathLike] = "cache", save_out: Union[bool, str, bytes, os.PathLike, int] = False, suffix: str = "", retrieve: bool = True, jitter: Union[bool, float] = False, ortho: bool = False, dataset: str = None, dataset_sub: str = "", truncate_input: int = None, workers: int = None, verbose: bool = False):
 
         self.suffix = suffix
         self.retrieve = retrieve
@@ -31,6 +31,7 @@ class NonLinearEstimator:
         self.truncate_input = truncate_input
         self.cacheDir = cache
         self.save_out = save_out
+        self.verbose = verbose
 
         self.__read_config(config_file)
 
@@ -127,7 +128,8 @@ class NonLinearEstimator:
         self.file_name = os.path.join(file_path, file_name)
         assert os.path.isfile(
             self.file_name), f"Missing dataset at specified path: {self.file_name}."
-        print(f"Using: {os.path.abspath(self.file_name)}")
+        if self.verbose:
+            print(f"Using: {os.path.abspath(self.file_name)}")
 
     def load_data(self, data=None, jitter=None, ortho=None, **kwargs):
         self.global_stats = None
@@ -167,16 +169,17 @@ class NonLinearEstimator:
 
         if self.jitter:
             diffs = np.diff(np.sort(self.mat[:, 0, 0]))
-            spa = np.min(diffs[diffs>0])
+            spa = np.min(diffs[diffs > 0])
             self.mat += np.random.normal(0, spa*self.jitter, self.mat.shape)
 
         self.duration, self.regions, self.sessions = self.mat.shape
 
-        print(
-            "Loaded data matrix: {} samples by {} regions by {} sessions".format(
-                self.duration, self.regions, self.sessions
+        if self.verbose:
+            print(
+                "Loaded data matrix: {} samples by {} regions by {} sessions".format(
+                    self.duration, self.regions, self.sessions
+                )
             )
-        )
 
         if self.bins == 0:
             self.bins = int(self.duration**(1/3))
@@ -208,7 +211,8 @@ class NonLinearEstimator:
 
         if not os.path.isdir(self.folder_name):
             os.makedirs(self.folder_name)
-        print(f"Output saved in: {self.folder_name}")
+        if self.verbose:
+            print(f"Output saved in: {self.folder_name}")
 
     def estimate(self, data=None, save_out=None, retrieve=None, display=None, truncate_input=None, **kwargs):
         assert (data is not None) != bool(self.dataset or ("dataset" in kwargs and bool(
@@ -249,6 +253,7 @@ class NonLinearEstimator:
             retrieve=self.retrieve,
             config=self.config,
             duration=self.duration,
+            verbose=self.verbose,
             **kwargs
         )
         self.corrector.compute_correction()
@@ -310,7 +315,7 @@ class NonLinearEstimator:
                                          for name in tmp_statsNames})
 
         with get_pool(self.workers) as pool:
-            for subject in tqdm(range(self.sessions), desc=f"Subject", leave=True):
+            for subject in tqdm(range(self.sessions), desc=f"Subject", leave=True, disable=not self.verbose):
 
                 if subject >= self.stop_saving:
                     self.save_out = False

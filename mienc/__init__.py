@@ -54,7 +54,8 @@ def main():
         dataset=args.dataset,
         dataset_sub=args.dataset_sub,
         truncate_input=args.truncate,
-        workers=args.workers
+        workers=args.workers,
+        verbose=True
     )
 
     estimator.estimate(extended_stats=args.full_stats, compute_shadow=args.shadow)

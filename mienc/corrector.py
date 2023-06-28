@@ -26,9 +26,11 @@ class Corrector:
         display: bool = False,
         retrieve: bool = True,
         config: Union[str, configparser.ConfigParser] = None,
+        verbose: bool = False,
         **kwargs
     ):
         self.bins = bins
+        self.verbose = verbose
 
         if config is not None:
             if isinstance(config, str):
@@ -45,10 +47,12 @@ class Corrector:
             self.config = None
 
         if self.config is not None:
-            self.steps = self.config.getint("correction", "steps", fallback=200)
+            self.steps = self.config.getint(
+                "correction", "steps", fallback=200)
             self.iterations = self.config.getint(
                 "correction", "iters", fallback=10000)
-            self.samples = self.config.getint("correction", "nsamples", fallback=0)
+            self.samples = self.config.getint(
+                "correction", "nsamples", fallback=0)
             self.cache_dir = self.config.getint(
                 "correction", "cacheDir", fallback=None)
 
@@ -121,7 +125,8 @@ class Corrector:
                     shape = json.load(fp)
                     if shape[0] == self.samples:
                         if os.path.isfile(os.path.join(fold, self.out_file)):
-                            print("Retrieving correction from: ", fold)
+                            if self.verbose:
+                                print("Retrieving correction from: ", fold)
                             self.earlyResultsPath = os.path.join(
                                 fold, self.out_file)
                             return
@@ -134,9 +139,11 @@ class Corrector:
             np.log(1 - (np.arange(self.steps) / self.steps) ** 2)
         correction = np.zeros(self.steps)
         if self.earlyResultsPath is None:
-            print(f"Computing correction for {self.samples} samples and {self.bins} bins.")
+            if self.verbose:
+                print(
+                    f"Computing correction for {self.samples} samples and {self.bins} bins.")
             with get_pool(self.workers) as pool:
-                for i in tqdm(range(self.steps), "Step"):
+                for i in tqdm(range(self.steps), desc="Step", disable=not self.verbose):
                     means = 0, 0
                     corre = [[1, i * incre], [i * incre, 1]]
                     I = pool.map(
@@ -178,7 +185,9 @@ class Corrector:
             else:
                 self.correction = correction
         else:
-            print(f"Loading correction for {self.samples} samples and {self.bins} bins.")
+            if self.verbose:
+                print(
+                    f"Loading correction for {self.samples} samples and {self.bins} bins.")
             self.correction = np.load(self.earlyResultsPath)
             correction = self.correction
 
