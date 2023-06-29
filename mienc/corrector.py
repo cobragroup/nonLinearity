@@ -131,7 +131,7 @@ class Corrector:
 
     def compute_correction(self):
         """Computes the correction lookup table or loads the cached values."""
-        incre = 1 / self.steps
+        increment = 1 / self.steps
 
         self.true_value = -0.5 * \
             np.log(1 - (np.arange(self.steps) / self.steps) ** 2)
@@ -143,11 +143,11 @@ class Corrector:
             with get_pool(self.workers) as pool:
                 for i in tqdm(range(self.steps), desc="Step", disable=not self.verbose):
                     means = 0, 0
-                    corre = [[1, i * incre], [i * incre, 1]]
+                    correlation_matrix = [[1, i * increment], [i * increment, 1]]
                     I = pool.map(
                         single_iter,
                         (
-                            (means, corre, self.samples, self.bins)
+                            (means, correlation_matrix, self.samples, self.bins)
                             for __ in range(self.iterations)
                         ),
                     )
