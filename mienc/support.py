@@ -163,10 +163,10 @@ class a_normal_map ():
         pass
 
     def imap(self, *args):
-        return map(*args)
+        return list(map(*args))
 
     def map(self, *args):
-        return map(*args)
+        return list(map(*args))
 
 
 @contextmanager
