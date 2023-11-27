@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 import argparse
-from .nonlinearestimator import NonLinearEstimator
+
 from .corrector import Corrector
+from .nonlinearestimator import NonLinearEstimator
 
 
 def main():

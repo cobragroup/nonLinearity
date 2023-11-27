@@ -1,4 +1,5 @@
 import sys
+
 from . import main
 
 rc = 1

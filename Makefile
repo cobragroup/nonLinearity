@@ -82,3 +82,7 @@ $(ODIR)/pmi.o: pmi.cpp
 clean:
 
 	$(RM) $(ODIR)/* *~ core $(INCDIR)/*~ 
+
+format:
+	isort --profile black -l 100 mienc/
+	black -l 100 mienc/

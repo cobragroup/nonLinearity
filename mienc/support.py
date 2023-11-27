@@ -1,11 +1,12 @@
+import multiprocessing as mp
+import os
+import warnings
+from contextlib import contextmanager
+from ctypes import POINTER, Structure, c_bool, c_double, c_int, cdll
+from typing import Union
+
 import numpy as np
 from scipy.stats import norm
-import warnings
-import os
-from ctypes import c_int, cdll, POINTER, c_double, Structure, c_bool
-from typing import Union
-from contextlib import contextmanager
-import multiprocessing as mp
 
 el_path = os.path.abspath(os.path.dirname(__file__))
 _libMI = cdll.LoadLibrary(os.path.join(el_path, "../bin/libpmi.so"))
@@ -180,9 +181,7 @@ def quantile_vector(data: np.ndarray, quantile: Union[float, np.ndarray]):
     return out
 
 
-def surrogate(
-    x: np.ndarray, multivariate: bool = True, extension: int = 1
-) -> np.ndarray:
+def surrogate(x: np.ndarray, multivariate: bool = True, extension: int = 1) -> np.ndarray:
     """Generate a common angle surrogate of a N-D array (surrogates the first axis).
     Input:
     x: an N-dimensional np.Array with time along the first axis (time x whatever x ... x whatever).
@@ -201,9 +200,7 @@ def surrogate(
     extra_shape = [1] if multivariate else x.shape[1:]
 
     for i in range(extension):
-        rpha = np.exp(
-            2 * np.pi * np.random.rand(int(x.shape[0] / 2 + 1), *extra_shape) * 1.0j
-        )
+        rpha = np.exp(2 * np.pi * np.random.rand(int(x.shape[0] / 2 + 1), *extra_shape) * 1.0j)
         fftX1.append(fft * rpha)
 
     xs = np.concatenate([np.fft.irfft(tmp, n=x.shape[0], axis=0) for tmp in fftX1], 0)
