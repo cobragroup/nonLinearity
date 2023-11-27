@@ -7,16 +7,16 @@
 
 import numpy as np
 import numpy.typing as npt
+import warnings
+
 try:
     from statsmodels.tsa.api import VAR
     __loaded = True
 except ModuleNotFoundError:
-    import warnings
     warnings.warn(
         "'statsmodels' module missing, impossible to fit the VAR, 'innor' won't work.")
     __loaded = False
 except ImportError as e:
-    import warnings
     warnings.warn(
         "'statsmodels' failed to load, impossible to fit the VAR, 'innor' won't work.\n"+e.msg)
     __loaded = False
