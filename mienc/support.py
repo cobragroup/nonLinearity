@@ -107,27 +107,27 @@ def quantile_vector(data: np.ndarray, quantile: Union[float, np.ndarray]):
     return out
 
 
-def surrogate(x, multivariate=True):
+def surrogate(x:np.ndarray, multivariate:bool=True, extension:int=1)->np.ndarray:
     """Generate a common angle surrogate of a N-D array (surrogates the first axis).
         Input:
         x: an N-dimensional np.Array with time along the first axis (time x whatever x ... x whatever).
         multivariate: if True (default) applies the same random phases to all the series.
+        extension: create a longer surrogate by joining extension many.
         Output:
         np.array containing the surrogate time series such that output shape matches input shape."""
     if x.shape[1] > x.shape[0]:
         warnings.warn(
             "It looks you have more series than timepoints, or maybe you should transpose the input.", RuntimeWarning)
-    if multivariate:
+    fft = np.fft.rfft(x, axis=0)
+    fftX1 = []
+    extra_shape = [1] if multivariate else x.shape[1:]
+
+    for i in range(extension):
         rpha = np.exp(
-            2 * np.pi * np.random.rand(int(x.shape[0] / 2 + 1)) * 1.0j)
-        fftX1 = np.fft.rfft(x, axis=0).T * rpha
-    else:
-        rpha = np.exp(
-            2 * np.pi *
-            np.random.rand(int(x.shape[0] / 2 + 1), *x.shape[1:]) * 1.0j
-        )
-        fftX1 = (np.fft.rfft(x, axis=0) * rpha).T
-    xs = np.fft.irfft(fftX1, n=x.shape[0]).T
+            2 * np.pi * np.random.rand(int(x.shape[0] / 2 + 1), *extra_shape) * 1.0j)
+        fftX1.append(fft*rpha)
+            
+    xs = np.concatenate([np.fft.irfft(tmp, n=x.shape[0], axis=0) for tmp in fftX1],0)
     return xs
 
 
