@@ -2,7 +2,15 @@
 # This package contains some useful code
 
 from .innovationOrthogonalization import innOr
-from .support import total_mutual_information, surrogate, task_producer, statistics, get_pool, a_normal_map, adjust_jitter
+from .support import (
+    total_mutual_information,
+    surrogate,
+    task_producer,
+    statistics,
+    get_pool,
+    a_normal_map,
+    adjust_jitter,
+)
 from .corrector import Corrector
 import numpy as np
 import matplotlib.pyplot as plt
@@ -15,15 +23,39 @@ from warnings import warn
 import os
 import socket
 from typing import Union
+
 path = os.path.dirname(os.path.realpath(__file__))
 
 
 class NonLinearEstimator:
-    statsNames = ["totalMI", "gaussMI", "sigmaGaussMI", "ratio95control",
-                  "ratio99control", "ratio05", "ratio95", "ratio99"]
+    statsNames = [
+        "totalMI",
+        "gaussMI",
+        "sigmaGaussMI",
+        "ratio95control",
+        "ratio99control",
+        "ratio05",
+        "ratio95",
+        "ratio99",
+    ]
 
-    def __init__(self, config_file: Union[str, bytes, os.PathLike] = None, bins: int = None, surrogates: int = None, cache: Union[str, bytes, os.PathLike] = "cache", save_out: Union[bool, str, bytes, os.PathLike, int] = False, suffix: str = "", retrieve: bool = True, jitter: Union[bool, float] = False, ortho: bool = False, dataset: str = None, dataset_sub: str = "", truncate_input: int = None, workers: int = None, verbose: bool = False):
-
+    def __init__(
+        self,
+        config_file: Union[str, bytes, os.PathLike] = None,
+        bins: int = None,
+        surrogates: int = None,
+        cache: Union[str, bytes, os.PathLike] = "cache",
+        save_out: Union[bool, str, bytes, os.PathLike, int] = False,
+        suffix: str = "",
+        retrieve: bool = True,
+        jitter: Union[bool, float] = False,
+        ortho: bool = False,
+        dataset: str = None,
+        dataset_sub: str = "",
+        truncate_input: int = None,
+        workers: int = None,
+        verbose: bool = False,
+    ):
         self.suffix = suffix
         self.retrieve = retrieve
         self.dataset = dataset
@@ -47,8 +79,12 @@ class NonLinearEstimator:
         if jitter is not None:
             self.jitter = adjust_jitter(jitter)
 
-        assert self.bins is not None, "Number of bins undefined, can't create the NonLinearEstimator"
-        assert self.surrogates is not None, "Number of surrogates undefined, can't create the NonLinearEstimator"
+        assert (
+            self.bins is not None
+        ), "Number of bins undefined, can't create the NonLinearEstimator"
+        assert (
+            self.surrogates is not None
+        ), "Number of surrogates undefined, can't create the NonLinearEstimator"
         if self.workers is None:
             self.workers = 1
 
@@ -60,28 +96,31 @@ class NonLinearEstimator:
             self.config.read(config_file)
 
             self.ortho = self.config.getboolean(
-                "global", "orthogonalise", fallback=False)
+                "global", "orthogonalise", fallback=False
+            )
             self.jitter = self.config.get("global", "jitter", fallback="0.")
-            self.display = self.config.getboolean(
-                "global", "display", fallback=True)
+            self.display = self.config.getboolean("global", "display", fallback=True)
             self.workers = self.config.getint("global", "workers", fallback=4)
             self.output_folder = self.config.get(
-                "global", "output_folder", fallback="..")
+                "global", "output_folder", fallback=".."
+            )
             self.bins = self.config.getint("global", "bins", fallback=8)
-            self.surrogates = self.config.getint(
-                "global", "surrogates", fallback=99)
+            self.surrogates = self.config.getint("global", "surrogates", fallback=99)
 
             thisHost = socket.gethostname()
             if self.config.has_section(thisHost):
                 self.workers = self.config.getint(
-                    thisHost, "workers", fallback=self.workers)
+                    thisHost, "workers", fallback=self.workers
+                )
                 self.output_folder = self.config.get(
-                    thisHost, "output_folder", fallback=self.output_folder)
+                    thisHost, "output_folder", fallback=self.output_folder
+                )
             if not os.path.isabs(self.output_folder):
                 self.output_folder = os.path.abspath(
-                    os.path.join(path, self.output_folder))
+                    os.path.join(path, self.output_folder)
+                )
         except Exception as e:
-            warn("Unable to read config file.\n"+"\n".join(e.args))
+            warn("Unable to read config file.\n" + "\n".join(e.args))
             self.config = None
             self.ortho = None
             self.jitter = None
@@ -90,21 +129,26 @@ class NonLinearEstimator:
             self.output_folder = None
             self.bins = None
 
-    def __read_config_dataset(self, dataset_sub=None, truncate_input=None, dataset=None, **kwargs):
+    def __read_config_dataset(
+        self, dataset_sub=None, truncate_input=None, dataset=None, **kwargs
+    ):
         if dataset is not None:
             self.dataset = dataset
         if dataset_sub is not None:
             self.dataset_sub = dataset_sub
         if truncate_input is not None:
             self.truncate_input = truncate_input
-        assert self.config is not None, "When not passing data directly, a valid config.ini file is necessary."
-        self.config['DEFAULT']['dataset_sub'] = self.dataset_sub
+        assert (
+            self.config is not None
+        ), "When not passing data directly, a valid config.ini file is necessary."
+        self.config["DEFAULT"]["dataset_sub"] = self.dataset_sub
 
         if self.dataset is None:
             self.dataset = self.config.get("global", "dataset", fallback=None)
         assert self.dataset is not None, "Unspecified dataset in .ini file."
         assert self.config.has_section(
-            self.dataset), "The details for the specified dataset are missing in .ini file."
+            self.dataset
+        ), "The details for the specified dataset are missing in .ini file."
 
         file_path = self.config.get(self.dataset, "file_path", fallback=None)
         assert file_path is not None, "Missing dataset file path in .ini file."
@@ -112,22 +156,22 @@ class NonLinearEstimator:
         file_name = self.config.get(self.dataset, "file_name", fallback=None)
         assert file_name is not None, "Missing dataset filename in .ini file."
 
-        self.field_name = self.config.get(
-            self.dataset, "field_name", fallback=None)
+        self.field_name = self.config.get(self.dataset, "field_name", fallback=None)
         if self.field_name is None:
             warn("Missing dataset fieldname in .ini file. Trying with heuristics.")
 
         hc_start = self.config.getint(
-            self.dataset, "healthy_control_start", fallback=None)
+            self.dataset, "healthy_control_start", fallback=None
+        )
         hc_start = hc_start if hc_start else None
-        hc_end = self.config.getint(
-            self.dataset, "healthy_control_end", fallback=None)
+        hc_end = self.config.getint(self.dataset, "healthy_control_end", fallback=None)
         hc_end = hc_end if hc_end else None
         self.hc_slice = slice(hc_start, hc_end)
 
         self.file_name = os.path.join(file_path, file_name)
         assert os.path.isfile(
-            self.file_name), f"Missing dataset at specified path: {self.file_name}."
+            self.file_name
+        ), f"Missing dataset at specified path: {self.file_name}."
         if self.verbose:
             print(f"Using: {os.path.abspath(self.file_name)}")
 
@@ -141,8 +185,11 @@ class NonLinearEstimator:
             self.__read_config_dataset(**kwargs)
             if self.field_name is None:
                 tmp_mat = sio.loadmat(self.file_name)
-                self.field_name = [k for k in tmp_mat.keys() if k not in [
-                    '__header__', '__version__', '__globals__']][0]
+                self.field_name = [
+                    k
+                    for k in tmp_mat.keys()
+                    if k not in ["__header__", "__version__", "__globals__"]
+                ][0]
                 tmp_mat = tmp_mat[self.field_name]
             else:
                 tmp_mat = sio.loadmat(self.file_name)[self.field_name]
@@ -157,7 +204,10 @@ class NonLinearEstimator:
                 tmp_mat = tmp_mat[:, :, np.newaxis]
             else:
                 raise RuntimeError(
-                    "The number of effective dimensions of input data ({}) can't be constrained to samples x regions (x subjects) format.".format(len(tmp_mat.shape)))
+                    "The number of effective dimensions of input data ({}) can't be constrained to samples x regions (x subjects) format.".format(
+                        len(tmp_mat.shape)
+                    )
+                )
 
         if self.ortho:
             try:
@@ -170,7 +220,7 @@ class NonLinearEstimator:
         if self.jitter:
             diffs = np.diff(np.sort(self.mat[:, 0, 0]))
             spa = np.min(diffs[diffs > 0])
-            self.mat += np.random.normal(0, spa*self.jitter, self.mat.shape)
+            self.mat += np.random.normal(0, spa * self.jitter, self.mat.shape)
 
         self.duration, self.regions, self.sessions = self.mat.shape
 
@@ -182,7 +232,7 @@ class NonLinearEstimator:
             )
 
         if self.bins == 0:
-            self.bins = int(self.duration**(1/3))
+            self.bins = int(self.duration ** (1 / 3))
 
         self.pairNum = int((self.regions * (self.regions - 1)) / 2)
         if self.stop_saving is True:
@@ -207,16 +257,26 @@ class NonLinearEstimator:
 
         if not os.path.isabs(folder_name) and self.output_folder is not None:
             self.folder_name = os.path.abspath(
-                os.path.join(self.output_folder, folder_name))
+                os.path.join(self.output_folder, folder_name)
+            )
 
         if not os.path.isdir(self.folder_name):
             os.makedirs(self.folder_name)
         if self.verbose:
             print(f"Output saved in: {self.folder_name}")
 
-    def estimate(self, data=None, save_out=None, retrieve=None, display=None, truncate_input=None, **kwargs):
-        assert (data is not None) != bool(self.dataset or ("dataset" in kwargs and bool(
-            kwargs["dataset"]))), f"You can't pass data and a dataset name at the same time. Data: {len(data.shape)}-D array, dataset: '{self.dataset if self.dataset else kwargs['dataset']}'."
+    def estimate(
+        self,
+        data=None,
+        save_out=None,
+        retrieve=None,
+        display=None,
+        truncate_input=None,
+        **kwargs,
+    ):
+        assert (data is not None) != bool(
+            self.dataset or ("dataset" in kwargs and bool(kwargs["dataset"]))
+        ), f"You can't pass data and a dataset name at the same time. Data: {len(data.shape)}-D array, dataset: '{self.dataset if self.dataset else kwargs['dataset']}'."
         if save_out is not None:
             self.save_out = save_out
 
@@ -254,13 +314,15 @@ class NonLinearEstimator:
             config=self.config,
             duration=self.duration,
             verbose=self.verbose,
-            **kwargs
+            **kwargs,
         )
         self.corrector.compute_correction()
 
         return self._do_estimate(**kwargs)
 
-    def _single_subject_numeric(self, subject: int, pool: Union[pool_type, a_normal_map], compute_shadow: bool):
+    def _single_subject_numeric(
+        self, subject: int, pool: Union[pool_type, a_normal_map], compute_shadow: bool
+    ):
         if self.folder_name is not None:
             base_output_name = f"subject{subject:02}_{self.bins}"
             base_output_path = os.path.join(self.folder_name, base_output_name)
@@ -268,36 +330,59 @@ class NonLinearEstimator:
         if self.folder_name is not None and os.path.isfile(base_output_path + ".npy"):
             true_and_surrogate_MI = np.load(base_output_path + ".npy")
         else:
-            true_and_surrogate_MI = np.zeros(
-                [self.pairNum, self.surrogates + 1])
-            for ns, tmi in enumerate(pool.imap(total_mutual_information, ((subject_mat, self.bins) for subject_mat in task_producer(self.mat[:, :, subject], self.surrogates)))):
+            true_and_surrogate_MI = np.zeros([self.pairNum, self.surrogates + 1])
+            for ns, tmi in enumerate(
+                pool.imap(
+                    total_mutual_information,
+                    (
+                        (subject_mat, self.bins)
+                        for subject_mat in task_producer(
+                            self.mat[:, :, subject], self.surrogates
+                        )
+                    ),
+                )
+            ):
                 true_and_surrogate_MI[:, ns] = tmi
             if self.save_out:
                 np.save(base_output_path + ".npy", true_and_surrogate_MI)
 
         if compute_shadow:
-            if self.folder_name is not None and os.path.isfile(base_output_path + "_sha.npy"):
-                true_and_surrogate_MI_shadow = np.load(
-                    base_output_path + "_sha.npy")
+            if self.folder_name is not None and os.path.isfile(
+                base_output_path + "_sha.npy"
+            ):
+                true_and_surrogate_MI_shadow = np.load(base_output_path + "_sha.npy")
             else:
                 shadow_mat = surrogate(self.mat[:, :, subject])
                 true_and_surrogate_MI_shadow = np.zeros(
-                    [self.pairNum, self.surrogates + 1])
-                for ns, tmi in enumerate(pool.imap(total_mutual_information, ((subject_mat, self.bins) for subject_mat in task_producer(shadow_mat[:, :], self.surrogates)))):
+                    [self.pairNum, self.surrogates + 1]
+                )
+                for ns, tmi in enumerate(
+                    pool.imap(
+                        total_mutual_information,
+                        (
+                            (subject_mat, self.bins)
+                            for subject_mat in task_producer(
+                                shadow_mat[:, :], self.surrogates
+                            )
+                        ),
+                    )
+                ):
                     true_and_surrogate_MI_shadow[:, ns] = tmi
 
                 if self.save_out:
-                    np.save(base_output_path + "_sha.npy",
-                            true_and_surrogate_MI_shadow)
+                    np.save(base_output_path + "_sha.npy", true_and_surrogate_MI_shadow)
         else:
             true_and_surrogate_MI_shadow = None
 
-        if self.folder_name is not None and os.path.isfile(base_output_path + "_cor.npy"):
+        if self.folder_name is not None and os.path.isfile(
+            base_output_path + "_cor.npy"
+        ):
             correlation = np.load(base_output_path + "_cor.npy")
         else:
             for normalised in task_producer(self.mat[:, :, subject], 0):
                 correlation = np.corrcoef(normalised, rowvar=False)[
-                    np.triu_indices(self.regions, 1)]
+                    np.triu_indices(self.regions, 1)
+                ]
             if self.save_out:
                 np.save(base_output_path + "_cor.npy", correlation)
 
@@ -305,56 +390,105 @@ class NonLinearEstimator:
 
     def _do_estimate(self, extended_stats=False, compute_shadow=False, **kwargs):
         tmp_statsNames = self.statsNames if extended_stats else self.statsNames[:3]
-        if self.folder_name is not None and os.path.isfile(os.path.join(self.folder_name, "global_stats.json")):
+        if self.folder_name is not None and os.path.isfile(
+            os.path.join(self.folder_name, "global_stats.json")
+        ):
             with open(os.path.join(self.folder_name, "global_stats.json")) as fp:
                 self.global_stats = json.load(fp)
         else:
             self.global_stats = {name: [] for name in tmp_statsNames}
             if compute_shadow:
-                self.global_stats.update({name+"shadow": []
-                                         for name in tmp_statsNames})
+                self.global_stats.update(
+                    {name + "shadow": [] for name in tmp_statsNames}
+                )
 
         with get_pool(self.workers) as pool:
-            for subject in tqdm(range(self.sessions), desc=f"Subject", leave=True, disable=not self.verbose):
-
+            for subject in tqdm(
+                range(self.sessions),
+                desc=f"Subject",
+                leave=True,
+                disable=not self.verbose,
+            ):
                 if subject >= self.stop_saving:
                     self.save_out = False
-                globalStatsComputedSubjects = min(
-                    map(len, self.global_stats.values()))
-                globalsToBeComputed = globalStatsComputedSubjects < subject+1
-                assert max(map(len, self.global_stats.values(
-                ))) == globalStatsComputedSubjects, "Inconsistent global_stats.json"
+                globalStatsComputedSubjects = min(map(len, self.global_stats.values()))
+                globalsToBeComputed = globalStatsComputedSubjects < subject + 1
+                assert (
+                    max(map(len, self.global_stats.values()))
+                    == globalStatsComputedSubjects
+                ), "Inconsistent global_stats.json"
 
-                plotAlreadyThere = self.folder_name is not None and os.path.isfile(os.path.join(
-                    self.folder_name, f"subject{subject:02}_{self.bins}.pdf"))
+                plotAlreadyThere = self.folder_name is not None and os.path.isfile(
+                    os.path.join(
+                        self.folder_name, f"subject{subject:02}_{self.bins}.pdf"
+                    )
+                )
                 plottingNeeded = (
-                    self.folder_name is not None and self.save_out and not plotAlreadyThere) or self.display
+                    self.folder_name is not None
+                    and self.save_out
+                    and not plotAlreadyThere
+                ) or self.display
 
                 if globalsToBeComputed or plottingNeeded:
-                    true_and_surrogate_MI, true_and_surrogate_MI_shadow, corr = self._single_subject_numeric(
-                        subject, pool, compute_shadow)
+                    (
+                        true_and_surrogate_MI,
+                        true_and_surrogate_MI_shadow,
+                        corr,
+                    ) = self._single_subject_numeric(subject, pool, compute_shadow)
 
                     if globalsToBeComputed:
-                        for key, val in statistics(true_and_surrogate_MI, self.corrector.correction, self.corrector.true_value, self.workers, extended_stats).items():
+                        for key, val in statistics(
+                            true_and_surrogate_MI,
+                            self.corrector.correction,
+                            self.corrector.true_value,
+                            self.workers,
+                            extended_stats,
+                        ).items():
                             if key in self.global_stats:
                                 self.global_stats[key].append(val)
                         if compute_shadow:
-                            for key, val in statistics(true_and_surrogate_MI_shadow, self.corrector.correction, self.corrector.true_value, self.workers, extended_stats).items():
+                            for key, val in statistics(
+                                true_and_surrogate_MI_shadow,
+                                self.corrector.correction,
+                                self.corrector.true_value,
+                                self.workers,
+                                extended_stats,
+                            ).items():
                                 if key in self.global_stats:
-                                    self.global_stats[key+"shadow"].append(val)
+                                    self.global_stats[key + "shadow"].append(val)
 
                     if plottingNeeded:
                         self._smile_plot(
-                            subject, corr, true_and_surrogate_MI, extended_stats, compute_shadow)
+                            subject,
+                            corr,
+                            true_and_surrogate_MI,
+                            extended_stats,
+                            compute_shadow,
+                        )
 
                 if self.folder_name is not None:
-                    with open(os.path.join(self.folder_name, os.path.split(self.folder_name)[1]+"_globalStats.json"), "w") as fp:
+                    with open(
+                        os.path.join(
+                            self.folder_name,
+                            os.path.split(self.folder_name)[1] + "_globalStats.json",
+                        ),
+                        "w",
+                    ) as fp:
                         json.dump(self.global_stats, fp)
         self.save_out = self.base_save_out
-        return {k: np.array(v) if len(v) > 1 else v[0] for k, v in self.global_stats.items()}
+        return {
+            k: np.array(v) if len(v) > 1 else v[0] for k, v in self.global_stats.items()
+        }
 
-    def _smile_plot(self, subject: int, correlation: np.ndarray, true_and_surrogate_MI: np.ndarray, extended_stats: bool, compute_shadow: bool):
-        if self.surrogates>0:
+    def _smile_plot(
+        self,
+        subject: int,
+        correlation: np.ndarray,
+        true_and_surrogate_MI: np.ndarray,
+        extended_stats: bool,
+        compute_shadow: bool,
+    ):
+        if self.surrogates > 0:
             corrected_percentile01pointer = (self.surrogates * (0.01) - 0.5) / (
                 self.surrogates - 1
             )
@@ -367,13 +501,15 @@ class NonLinearEstimator:
         new_order = np.argsort(correlation)
         expected = -0.5 * np.log(1 - correlation**2)
         plt.plot(correlation[new_order], expected[new_order], "purple")
-        if self.surrogates>0:
+        if self.surrogates > 0:
             pair_gauss_mi = np.mean(corrected_statsMI[:, 1:], 1)
             percentile01_PLOT, percentile99_PLOT = np.quantile(
-                corrected_statsMI[:, 1:], [corrected_percentile01pointer, corrected_percentile99pointer], 1)
+                corrected_statsMI[:, 1:],
+                [corrected_percentile01pointer, corrected_percentile99pointer],
+                1,
+            )
             plt.plot(correlation[new_order], pair_gauss_mi[new_order], "r")
-            plt.plot(correlation[new_order],
-                    percentile01_PLOT[new_order], "lightblue")
+            plt.plot(correlation[new_order], percentile01_PLOT[new_order], "lightblue")
             plt.plot(correlation[new_order], percentile99_PLOT[new_order], "g")
         plt.xlabel("correlation")
         plt.ylabel("mutual information (nats)")
@@ -381,7 +517,9 @@ class NonLinearEstimator:
         if extended_stats:
             title += f"({self.global_stats['ratio95'][subject]:.3}>95%"
             if compute_shadow:
-                title += f"$-$ {self.global_stats['ratio95shadow'][subject]:.3}>95% shadow"
+                title += (
+                    f"$-$ {self.global_stats['ratio95shadow'][subject]:.3}>95% shadow"
+                )
             title += ")"
         plt.title(title)
         plt.ylim(bottom=0)
@@ -389,7 +527,8 @@ class NonLinearEstimator:
             f"{self.folder_name}/subject{subject:02}_{self.bins}.pdf"
         ):
             plt.savefig(
-                f"{self.folder_name}/subject{subject:02}_{self.bins}.pdf", bbox_inches="tight"
+                f"{self.folder_name}/subject{subject:02}_{self.bins}.pdf",
+                bbox_inches="tight",
             )
         if self.display:
             plt.show()

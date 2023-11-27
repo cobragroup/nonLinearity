@@ -11,18 +11,24 @@ import warnings
 
 try:
     from statsmodels.tsa.api import VAR
+
     __loaded = True
 except ModuleNotFoundError:
     warnings.warn(
-        "'statsmodels' module missing, impossible to fit the VAR, 'innor' won't work.")
+        "'statsmodels' module missing, impossible to fit the VAR, 'innor' won't work."
+    )
     __loaded = False
 except ImportError as e:
     warnings.warn(
-        "'statsmodels' failed to load, impossible to fit the VAR, 'innor' won't work.\n"+e.msg)
+        "'statsmodels' failed to load, impossible to fit the VAR, 'innor' won't work.\n"
+        + e.msg
+    )
     __loaded = False
 
 
-def innOr(Y: npt.NDArray, verbose: bool = False, all_matrices: bool = False, **kwargs) -> npt.NDArray:
+def innOr(
+    Y: npt.NDArray, verbose: bool = False, all_matrices: bool = False, **kwargs
+) -> npt.NDArray:
     """Applies innovation orthogonalisation (Pascual-Marqui et al., 2017) to input data.
 
     Parameters
@@ -51,7 +57,8 @@ def innOr(Y: npt.NDArray, verbose: bool = False, all_matrices: bool = False, **k
     """
     if not __loaded:
         warnings.warn(
-            "'statsmodels' module missing, impossible to fit the VAR, returning original input.")
+            "'statsmodels' module missing, impossible to fit the VAR, returning original input."
+        )
         return Y
     if len(Y.shape) > 2:
         ortho = np.empty_like(Y)
@@ -64,27 +71,27 @@ def innOr(Y: npt.NDArray, verbose: bool = False, all_matrices: bool = False, **k
 
 def __ortho(Y, verbose, all_matrices):
     VAR_mod = VAR(Y)
-    res = VAR_mod.fit(ic="aic", verbose=verbose, trend='n')
+    res = VAR_mod.fit(ic="aic", verbose=verbose, trend="n")
     eta = res.resid
 
     n = 1
     old_D = np.ones((Y.shape[1], Y.shape[1]))
     D = np.identity(Y.shape[1])
-    while np.linalg.norm(old_D-D) > 1e-9:
+    while np.linalg.norm(old_D - D) > 1e-9:
         if not n % 10 and verbose:
             print("Optimising: ", n, f"({np.linalg.norm(old_D-D)})")
         old_D = D
-        L, GAMMA, Rh = np.linalg.svd(eta@D, full_matrices=False)
-        V = L@Rh
-        DELTA = V.T@eta
+        L, GAMMA, Rh = np.linalg.svd(eta @ D, full_matrices=False)
+        V = L @ Rh
+        DELTA = V.T @ eta
         D = np.diag(np.diag(DELTA))
         n += 1
     if verbose:
         print("Optimised: ", n, f"({np.linalg.norm(old_D-D)})")
 
-    M = np.linalg.inv(D)@V.T@eta
+    M = np.linalg.inv(D) @ V.T @ eta
 
-    X = Y@np.linalg.inv(M)
+    X = Y @ np.linalg.inv(M)
 
     if all_matrices:
         return X, res.coefs, eta, M
