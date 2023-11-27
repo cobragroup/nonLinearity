@@ -354,25 +354,27 @@ class NonLinearEstimator:
         return {k: np.array(v) if len(v) > 1 else v[0] for k, v in self.global_stats.items()}
 
     def _smile_plot(self, subject: int, correlation: np.ndarray, true_and_surrogate_MI: np.ndarray, extended_stats: bool, compute_shadow: bool):
-        corrected_percentile01pointer = (self.surrogates * (0.01) - 0.5) / (
-            self.surrogates - 1
-        )
-        corrected_percentile99pointer = (self.surrogates * (0.99) - 0.5) / (
-            self.surrogates - 1
-        )
+        if self.surrogates>0:
+            corrected_percentile01pointer = (self.surrogates * (0.01) - 0.5) / (
+                self.surrogates - 1
+            )
+            corrected_percentile99pointer = (self.surrogates * (0.99) - 0.5) / (
+                self.surrogates - 1
+            )
         corrected_statsMI = self.corrector.correct(true_and_surrogate_MI)
-        pair_gauss_mi = np.mean(corrected_statsMI[:, 1:], 1)
-        percentile01_PLOT, percentile99_PLOT = np.quantile(
-            corrected_statsMI[:, 1:], [corrected_percentile01pointer, corrected_percentile99pointer], 1)
 
         plt.scatter(correlation, corrected_statsMI[:, 0])
         new_order = np.argsort(correlation)
         expected = -0.5 * np.log(1 - correlation**2)
         plt.plot(correlation[new_order], expected[new_order], "purple")
-        plt.plot(correlation[new_order], pair_gauss_mi[new_order], "r")
-        plt.plot(correlation[new_order],
-                 percentile01_PLOT[new_order], "lightblue")
-        plt.plot(correlation[new_order], percentile99_PLOT[new_order], "g")
+        if self.surrogates>0:
+            pair_gauss_mi = np.mean(corrected_statsMI[:, 1:], 1)
+            percentile01_PLOT, percentile99_PLOT = np.quantile(
+                corrected_statsMI[:, 1:], [corrected_percentile01pointer, corrected_percentile99pointer], 1)
+            plt.plot(correlation[new_order], pair_gauss_mi[new_order], "r")
+            plt.plot(correlation[new_order],
+                    percentile01_PLOT[new_order], "lightblue")
+            plt.plot(correlation[new_order], percentile99_PLOT[new_order], "g")
         plt.xlabel("correlation")
         plt.ylabel("mutual information (nats)")
         title = f"Subject {subject} $-$ $MI_T:${self.global_stats['totalMI'][subject]:.3} vs $MI_G:${self.global_stats['gaussMI'][subject]:.3}"
