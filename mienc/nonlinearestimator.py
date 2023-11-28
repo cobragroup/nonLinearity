@@ -396,7 +396,9 @@ class NonLinearEstimator:
 
         if compute_shadow:
             if compute_shadow == "extend":
-                compute_shadow = min(1, int(5e3 // self.duration))
+                compute_shadow = max(1, int(5e3 // self.duration))
+                if self.verbose:
+                    print("Extending the shadow dataset by {} times".format(compute_shadow))
             else:
                 compute_shadow = 1
 
