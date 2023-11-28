@@ -6,7 +6,7 @@ import json
 import os
 import socket
 from multiprocessing.pool import Pool as pool_type
-from typing import Union
+from typing import Literal, Union
 from warnings import warn
 
 import matplotlib.pyplot as plt
@@ -81,9 +81,6 @@ class NonLinearEstimator:
         if jitter is not None:
             self.jitter = adjust_jitter(jitter)
 
-        assert (
-            self.bins is not None
-        ), "Number of bins undefined, can't create the NonLinearEstimator"
         assert (
             self.surrogates is not None
         ), "Number of surrogates undefined, can't create the NonLinearEstimator"
@@ -256,17 +253,32 @@ class NonLinearEstimator:
     def estimate(
         self,
         data=None,
+        bins=None,
         save_out=None,
         retrieve=None,
         display=None,
         truncate_input=None,
         **kwargs,
     ):
+        """KWARGS INCLUDE
+        jitter=None, ortho=None for load_data
+        dataset_sub=None, truncate_input=None, dataset=None for __read_config_dataset
+        verbose: bool = False, all_matrices: bool = False for innOr
+        suffix=None for __output_folder
+        extended_stats=False, compute_shadow: Union[bool, Literal["extend"]] = False for _do_estimate
+        steps: int = None, iterations: int = None, samples: int = None, ensure_monotonic: bool = True for Corrector
+        """
         assert (data is not None) != bool(
             self.dataset or ("dataset" in kwargs and bool(kwargs["dataset"]))
         ), f"You can't pass data and a dataset name at the same time. Data: {len(data.shape)}-D array, dataset: '{self.dataset if self.dataset else kwargs['dataset']}'."
         if save_out is not None:
             self.save_out = save_out
+
+        if bins is not None:
+            self.bins = bins
+
+        if self.bins is None:
+            self.bins = 0
 
         if isinstance(self.save_out, int):
             self.stop_saving = self.save_out
@@ -291,20 +303,6 @@ class NonLinearEstimator:
             self.folder_name = None
 
         self.save_out = bool(self.save_out)
-
-        self.corrector = Corrector(
-            self.bins,
-            folder_name=self.folder_name,
-            cache_dir=self.cacheDir,
-            workers=self.workers,
-            display=self.display,
-            retrieve=self.retrieve,
-            config=self.config,
-            duration=self.duration,
-            verbose=self.verbose,
-            **kwargs,
-        )
-        self.corrector.compute_correction()
 
         return self._do_estimate(**kwargs)
 
@@ -336,7 +334,9 @@ class NonLinearEstimator:
             if self.folder_name is not None and os.path.isfile(base_output_path + "_sha.npy"):
                 true_and_surrogate_MI_shadow = np.load(base_output_path + "_sha.npy")
             else:
-                shadow_mat = surrogate(self.mat[:, :, subject])
+                shadow_mat = surrogate(
+                    self.mat[:, :, subject], multivariate=True, extension=compute_shadow
+                )
                 true_and_surrogate_MI_shadow = np.zeros([self.pairNum, self.surrogates + 1])
                 for ns, tmi in enumerate(
                     pool.imap(
@@ -366,7 +366,9 @@ class NonLinearEstimator:
 
         return true_and_surrogate_MI, true_and_surrogate_MI_shadow, correlation
 
-    def _do_estimate(self, extended_stats=False, compute_shadow=False, **kwargs):
+    def _do_estimate(
+        self, extended_stats=False, compute_shadow: Union[bool, Literal["extend"]] = False, **kwargs
+    ):
         tmp_statsNames = self.statsNames if extended_stats else self.statsNames[:3]
         if self.folder_name is not None and os.path.isfile(
             os.path.join(self.folder_name, "global_stats.json")
@@ -377,6 +379,44 @@ class NonLinearEstimator:
             self.global_stats = {name: [] for name in tmp_statsNames}
             if compute_shadow:
                 self.global_stats.update({name + "shadow": [] for name in tmp_statsNames})
+
+        self.corrector = Corrector(
+            self.bins,
+            duration=self.duration,
+            folder_name=self.folder_name,
+            cache_dir=self.cacheDir,
+            workers=self.workers,
+            display=self.display,
+            retrieve=self.retrieve,
+            config=self.config,
+            verbose=self.verbose,
+            **kwargs,
+        )
+        self.corrector.compute_correction()
+
+        if compute_shadow:
+            if compute_shadow == "extend":
+                compute_shadow = min(1, int(5e3 // self.duration))
+            else:
+                compute_shadow = 1
+
+            if compute_shadow == 1:
+                self.shadow_corrector = self.corrector
+
+            else:
+                self.shadow_corrector = Corrector(
+                    self.bins,
+                    duration=self.duration * compute_shadow,
+                    folder_name=self.folder_name,
+                    cache_dir=self.cacheDir,
+                    workers=self.workers,
+                    display=self.display,
+                    retrieve=self.retrieve,
+                    config=self.config,
+                    verbose=self.verbose,
+                    **kwargs,
+                )
+                self.shadow_corrector.compute_correction()
 
         with get_pool(self.workers) as pool:
             for subject in tqdm(
@@ -420,8 +460,8 @@ class NonLinearEstimator:
                         if compute_shadow:
                             for key, val in statistics(
                                 true_and_surrogate_MI_shadow,
-                                self.corrector.correction,
-                                self.corrector.true_value,
+                                self.shadow_corrector.correction,
+                                self.shadow_corrector.true_value,
                                 self.workers,
                                 extended_stats,
                             ).items():
