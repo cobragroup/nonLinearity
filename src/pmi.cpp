@@ -8,9 +8,6 @@
 #include <future>
 #include <thread>
 #include <chrono>
-#ifdef DEBUG
-#include <string>
-#endif
 
 #define FULL_SIGMA_LIMIT 20000 // corresponds to ~200 series in the original data
 class list_manager
@@ -30,9 +27,6 @@ public:
     int pop()
     {
         std::unique_lock<std::mutex> l(lock);
-#ifdef DEBUG
-        std::cerr << "supplying: " + std::to_string(now) << std::endl;
-#endif
         if (now == tot_pairs)
             return -1;
         return now++;
@@ -143,14 +137,14 @@ size_t find_correct(const std::vector<double> &vec, const double val)
     return ind - 1;
 }
 
-void series_stats(double *data, int numSurrogates, const double correctedpercpointer[3], const double fractions[3], std::vector<double> &to_meanData, std::vector<double> &to_meanSurr, std::vector<double> &to_sigma2, std::array<std::vector<double>, 3> &to_ratio, std::array<std::vector<double>, 3> &to_ratioContr, const std::vector<double> &estimated, double *actual, std::vector<std::vector<double>> &tmp_toSigma)
+void series_stats(double *data, int numSurrogates, const double correctedpercpointer[3], const double fractions[3], std::array<std::vector<double>, 3> &to_ratio, std::array<std::vector<double>, 3> &to_ratioContr)
 {
     threadCount++;
     int j = tasks.pop();
     while (j >= 0)
     {
         auto firstPos = data + j * (numSurrogates + 1);
-        std::vector<double> tmp_correct(numSurrogates, 0), perc(firstPos, firstPos + numSurrogates + 1);
+        std::vector<double> perc(firstPos, firstPos + numSurrogates + 1);
         std::sort(perc.begin() + 1, perc.end());
         for (auto i = 0; i < 3; i++)
         {
@@ -162,176 +156,107 @@ void series_stats(double *data, int numSurrogates, const double correctedpercpoi
             double small = std::distance(perc.begin() + 1, std::upper_bound(perc.begin() + 1, perc.end(), perc[0]));
             to_ratioContr[i][j] = (1 - small / (numSurrogates + 1)) < (1 - fractions[i] + 1e-6);
         }
-        to_meanData[j] = actual[find_correct(estimated, perc[0])];
-        for (auto i = 0; i < numSurrogates; i++)
-        {
-            tmp_correct[i] = actual[find_correct(estimated, perc[i + 1])];
-            to_meanSurr[j] += tmp_correct[i];
-        }
-        to_meanSurr[j] /= numSurrogates;
 
-        for (auto i = 0; i < numSurrogates; i++)
-            tmp_toSigma[j][i] = (tmp_correct[i] - to_meanSurr[j]);
-        for (auto i = 0; i < numSurrogates; i++)
-            to_sigma2[j] += tmp_toSigma[j][i] * tmp_toSigma[j][i];
         j = tasks.pop();
     }
     threadCount--;
 }
 
-void second_loop(int numSurrogates, int numPairs, std::vector<double> &to_sigma2, std::vector<std::vector<double>> &tmp_toSigma)
+void vertical_stats (double *data, int numPairs, int numSurrogates, std::vector<double> &to_meanData, const std::vector<double> &estimated, double *actual)
 {
     threadCount++;
     int j = tasks.pop();
-#ifdef DEBUG
-    std::cerr << "7.x.- " << std::endl;
-#endif
     while (j >= 0)
     {
-#ifdef DEBUG
-        std::cerr << "7.x." + std::to_string(j) + ".1 " << std::endl;
-#endif
-        double sigma2 = 0;
-        if (numPairs < FULL_SIGMA_LIMIT)
+        for (auto i = 0; i < numPairs; i++)
         {
-            for (auto k = j + 1; k < numPairs; k++)
-            {
-                double cov = 0;
-#ifdef DEBUG
-                std::cerr << "7.x." + std::to_string(j) + ".1." + std::to_string(k) + ".1 " << std::endl;
-#endif
-                for (auto i = 0; i < numSurrogates; i++)
-                {
-                    cov += tmp_toSigma[j][i] * tmp_toSigma[k][i];
-                }
-#ifdef DEBUG
-                std::cerr << "7.x." + std::to_string(j) + ".1." + std::to_string(k) + ".2 " << std::endl;
-#endif
-                sigma2 += 2 * cov;
-            }
+            to_meanData[j] += actual[find_correct(estimated, *(data+j+i*(numSurrogates+1)))];
         }
-        else if (j + 1 < numPairs)
-        {
-            double cov = 0;
-            for (auto i = 0; i < numSurrogates; i++)
-            {
-                cov += tmp_toSigma[j][i] * tmp_toSigma[j + 1][i];
-            }
-            sigma2 += (numPairs - j - 1) * 2 * cov;
-        }
-#ifdef DEBUG
-        std::cerr << "7.x." + std::to_string(j) + ".2 " << std::endl;
-#endif
-        to_sigma2[j] += sigma2;
+
         j = tasks.pop();
-#ifdef DEBUG
-        std::cerr << "7.x." + std::to_string(j) + ".3 " << std::endl;
-#endif
     }
     threadCount--;
 }
 
-returnStats statistics(double *data, int numPairs, int numSurrogates, double *estim, double *actual, int bins, int numThreads)
+returnStats statistics(double *data, int numPairs, int numSurrogates, double *estim, double *actual, int bins, int numThreads, bool extended_stats)
 {
     returnStats result;
-    double correctedpercpointer[3], fractions[3] = {0.05, 0.95, 0.99};
-    double ratioContr[3] = {0}, ratio[3] = {0};
-    double meanData = 0, meanSurr = 0, sigma2 = 0;
-#ifdef DEBUG
-    std::cerr << "1" << std::endl;
-#endif
-    std::vector<double> to_meanData(numPairs, 0), to_meanSurr(numPairs, 0), to_sigma2(numPairs, 0);
-    std::array<std::vector<double>, 3> to_ratioContr = {std::vector<double>(numPairs, 0), std::vector<double>(numPairs, 0), std::vector<double>(numPairs, 0)}, to_ratio = {std::vector<double>(numPairs, 0), std::vector<double>(numPairs, 0), std::vector<double>(numPairs, 0)};
+    double meanSurr = 0, sigma2 = 0;
+    std::vector<double> to_meanData(numSurrogates+1, 0);
     std::vector<double> estimated(estim, estim + bins);
-    std::vector<std::vector<double>> tmp_toSigma(numPairs, std::vector<double>(numSurrogates));
-#ifdef DEBUG
-    std::cerr << "2" << std::endl;
-#endif
-    for (auto i = 0; i < 3; i++)
-        correctedpercpointer[i] = (numSurrogates * fractions[i] - 0.5) / (numSurrogates - 1);
     std::vector<std::thread> workers;
-    tasks.init(numPairs);
-#ifdef DEBUG
-    std::cerr << "3" << std::endl;
-#endif
-    for (auto j = 0; j < numThreads; j++)
-    {
-        workers.push_back(std::thread(&series_stats, data, numSurrogates, correctedpercpointer, fractions, std::ref(to_meanData), std::ref(to_meanSurr), std::ref(to_sigma2), std::ref(to_ratio), std::ref(to_ratioContr), std::ref(estimated), actual, std::ref(tmp_toSigma)));
-    }
-#ifdef DEBUG
-    std::cerr << "4" << std::endl;
-#endif
-    while (tasks.remaining() || threadCount)
-    {
-        std::this_thread::sleep_for(std::chrono::milliseconds(250));
-    }
-#ifdef DEBUG
-    std::cerr << "5" << std::endl;
-#endif
-    for (auto &t : workers)
-        if (t.joinable())
-            t.join();
-#ifdef DEBUG
-    std::cerr << "6" << std::endl;
-#endif
 
-    workers.clear();
-    tasks.init(numPairs);
-#ifdef DEBUG
-    std::cerr << "7 " << std::endl;
-#endif
-    for (auto j = 0; j < numThreads; j++)
-    {
-#ifdef DEBUG
-        std::cerr << "7." + std::to_string(j) + " " << std::endl;
-#endif
-        workers.push_back(std::thread(&second_loop, numSurrogates, numPairs, std::ref(to_sigma2), std::ref(tmp_toSigma)));
-    }
-#ifdef DEBUG
-    std::cerr << "8 " << std::endl;
-#endif
-    while (tasks.remaining() || threadCount)
-    {
-        std::this_thread::sleep_for(std::chrono::milliseconds(250));
-#ifdef DEBUG
-        std::cerr << "\r" + std::to_string(tasks.remaining()) + " " + std::to_string(threadCount) << std::flush;
-#endif
-    }
-#ifdef DEBUG
-    std::cerr << "9" << std::endl;
-#endif
-    for (auto &t : workers)
-        if (t.joinable())
-            t.join();
-#ifdef DEBUG
-    std::cerr << "10" << std::endl;
-#endif
-
-    for (auto j = 0; j < numPairs; j++)
-    {
-        meanData += to_meanData[j];
-        meanSurr += to_meanSurr[j];
-        sigma2 += to_sigma2[j];
+    if (extended_stats){
+        double correctedpercpointer[3], fractions[3] = {0.05, 0.95, 0.99};
+        double ratioContr[3] = {0}, ratio[3] = {0};
+        std::array<std::vector<double>, 3> to_ratioContr = {std::vector<double>(numPairs, 0), std::vector<double>(numPairs, 0), std::vector<double>(numPairs, 0)}, to_ratio = {std::vector<double>(numPairs, 0), std::vector<double>(numPairs, 0), std::vector<double>(numPairs, 0)};
         for (auto i = 0; i < 3; i++)
-            ratio[i] += to_ratio[i][j];
-        for (auto i = 1; i < 3; i++)
-            ratioContr[i] += to_ratioContr[i][j];
-    }
-#ifdef DEBUG
-    std::cerr << "11" << std::endl;
-#endif
+            correctedpercpointer[i] = (numSurrogates * fractions[i] - 0.5) / (numSurrogates - 1);
+        tasks.init(numPairs);
+        for (auto j = 0; j < numThreads; j++)
+        {
+            workers.push_back(std::thread(&series_stats, data, numSurrogates, correctedpercpointer, fractions, std::ref(to_ratio), std::ref(to_ratioContr)));
+        }
+        while (tasks.remaining() || threadCount)
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(250));
+        }
+        for (auto &t : workers)
+            if (t.joinable())
+                t.join();
 
-    result.ratio05 = 1 - ratio[0] / numPairs;
-    result.ratio95 = ratio[1] / numPairs;
-    result.ratio99 = ratio[2] / numPairs;
-    result.ratio95control = ratioContr[1] / numPairs;
-    result.ratio99control = ratioContr[2] / numPairs;
-    result.totalMI = meanData / numPairs;
+        workers.clear();
+
+        for (auto j = 0; j < numPairs; j++)
+        {
+            for (auto i = 0; i < 3; i++)
+                ratio[i] += to_ratio[i][j];
+            for (auto i = 1; i < 3; i++)
+                ratioContr[i] += to_ratioContr[i][j];
+        }
+
+        result.ratio05 = 1 - ratio[0] / numPairs;
+        result.ratio95 = ratio[1] / numPairs;
+        result.ratio99 = ratio[2] / numPairs;
+        result.ratio95control = ratioContr[1] / numPairs;
+        result.ratio99control = ratioContr[2] / numPairs;
+    }
+    else{
+        result.ratio05 = NAN;
+        result.ratio95 = NAN;
+        result.ratio99 = NAN;
+        result.ratio95control = NAN;
+        result.ratio99control = NAN;
+    }
+
+
+    tasks.init(numSurrogates+1);
+    for (auto j = 0; j < numThreads; j++)
+    {
+        workers.push_back(std::thread(&vertical_stats, data, numPairs, numSurrogates, std::ref(to_meanData), std::ref(estimated), actual));
+    }
+    while (tasks.remaining() || threadCount)
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(250));
+    }
+    for (auto &t : workers)
+        if (t.joinable())
+            t.join();
+
+    for (auto j = 1; j < numSurrogates+1; j++)
+    {
+        meanSurr += to_meanData[j];
+    }
+    meanSurr /= numSurrogates;
+
+    for (auto j = 1; j < numSurrogates+1; j++)
+    {
+        sigma2 += (to_meanData[j]-meanSurr)*(to_meanData[j]-meanSurr);
+    }
+
+    result.totalMI = to_meanData[0] / numPairs;
     result.gaussMI = meanSurr / numPairs;
     result.sigmaGaussMI = sqrt(sigma2) / numSurrogates / numPairs;
-#ifdef DEBUG
-    std::cerr << "12" << std::endl;
-#endif
 
     return result;
 }

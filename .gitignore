@@ -1,8 +1,15 @@
 __pycache__
 nohup.out
 bin
+cache
 settings.json
 *.pickle
 dummy*
 *pdf
+*png
 .vscode
+*code-workspace
+*tar*
+*npy
+*mat
+*pkl
