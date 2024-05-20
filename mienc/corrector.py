@@ -56,7 +56,9 @@ class Corrector:
 
             this_host = socket.gethostname()
             if self.config.has_section(this_host):
-                self.cache_dir = self.config.get(this_host, "cacheDir", fallback=self.cache_dir)
+                self.cache_dir = self.config.get(
+                    this_host, "cacheDir", fallback=self.cache_dir
+                )
         else:
             self.steps = None
             self.iterations = None
@@ -121,7 +123,9 @@ class Corrector:
             return
 
         for fold in glob.glob(
-            os.path.abspath(os.path.join(self.folder_name, os.pardir, f"*bin{self.bins}"))
+            os.path.abspath(
+                os.path.join(self.folder_name, os.pardir, f"*bin{self.bins}")
+            )
         ):
             if os.path.isfile(os.path.join(fold, "shape.json")):
                 with open(os.path.join(fold, "shape.json")) as fp:
@@ -141,7 +145,9 @@ class Corrector:
         correction = np.zeros(self.steps)
         if self.earlyResultsPath is None:
             if self.verbose:
-                print(f"Computing correction for {self.samples} samples and {self.bins} bins.")
+                print(
+                    f"Computing correction for {self.samples} samples and {self.bins} bins."
+                )
             with get_pool(self.workers) as pool:
                 for i in tqdm(range(self.steps), desc="Step", disable=not self.verbose):
                     means = 0, 0
@@ -202,7 +208,9 @@ class Corrector:
                 self.correction = correction
         else:
             if self.verbose:
-                print(f"Loading correction for {self.samples} samples and {self.bins} bins.")
+                print(
+                    f"Loading correction for {self.samples} samples and {self.bins} bins."
+                )
             self.correction = np.load(self.earlyResultsPath)
             correction = self.correction
 
@@ -226,7 +234,9 @@ class Corrector:
             weights[:-1] += 0.5 * (self.true_value[1:] - self.true_value[:-1])
             weights[1:] += weights[:-1]
             deviation = np.sqrt(
-                np.average(np.square(correction[:] - self.true_value[:]), weights=weights)
+                np.average(
+                    np.square(correction[:] - self.true_value[:]), weights=weights
+                )
             )
 
             plt.title(f"RMS correction: {deviation:.4}")

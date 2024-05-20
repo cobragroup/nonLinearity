@@ -181,7 +181,9 @@ def quantile_vector(data: np.ndarray, quantile: Union[float, np.ndarray]):
     return out
 
 
-def surrogate(x: np.ndarray, multivariate: bool = True, extension: int = 1) -> np.ndarray:
+def surrogate(
+    x: np.ndarray, multivariate: bool = True, extension: int = 1
+) -> np.ndarray:
     """Generate a common angle surrogate of a N-D array (surrogates the first axis).
     Input:
     x: an N-dimensional np.Array with time along the first axis (time x whatever x ... x whatever).
@@ -200,7 +202,9 @@ def surrogate(x: np.ndarray, multivariate: bool = True, extension: int = 1) -> n
     extra_shape = [1] if multivariate else x.shape[1:]
 
     for i in range(extension):
-        rpha = np.exp(2 * np.pi * np.random.rand(int(x.shape[0] / 2 + 1), *extra_shape) * 1.0j)
+        rpha = np.exp(
+            2 * np.pi * np.random.rand(int(x.shape[0] / 2 + 1), *extra_shape) * 1.0j
+        )
         fftX1.append(fft * rpha)
 
     xs = np.concatenate([np.fft.irfft(tmp, n=x.shape[0], axis=0) for tmp in fftX1], 0)

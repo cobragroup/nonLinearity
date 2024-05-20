@@ -15,11 +15,14 @@ try:
 
     __loaded = True
 except ModuleNotFoundError:
-    warnings.warn("'statsmodels' module missing, impossible to fit the VAR, 'innor' won't work.")
+    warnings.warn(
+        "'statsmodels' module missing, impossible to fit the VAR, 'innor' won't work."
+    )
     __loaded = False
 except ImportError as e:
     warnings.warn(
-        "'statsmodels' failed to load, impossible to fit the VAR, 'innor' won't work.\n" + e.msg
+        "'statsmodels' failed to load, impossible to fit the VAR, 'innor' won't work.\n"
+        + e.msg
     )
     __loaded = False
 

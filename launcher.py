@@ -3,16 +3,62 @@ from mienc.nonlinearestimator import NonLinearEstimator as NLE
 import numpy as np
 from scipy.io import loadmat
 
-regions = [10, 30, 50, 70, 100, 150, 200, 230, 270, 300, 350,
-           400, 450, 500, 550, 600, 650, 700, 750, 800, 850, 900, 950]
+regions = [
+    10,
+    30,
+    50,
+    70,
+    100,
+    150,
+    200,
+    230,
+    270,
+    300,
+    350,
+    400,
+    450,
+    500,
+    550,
+    600,
+    650,
+    700,
+    750,
+    800,
+    850,
+    900,
+    950,
+]
 
-nle = NLE(config_file="config.ini", bins=8, surrogates=99, verbose=True, cache="cache/", save_out=True, dataset="trimmed_EEG_bands_time", workers=23)
+nle = NLE(
+    config_file="config.ini",
+    bins=8,
+    surrogates=99,
+    verbose=True,
+    cache="cache/",
+    save_out=True,
+    dataset="trimmed_EEG_bands_time",
+    workers=23,
+)
 for t in [1823, 912, 456]:
-    tmp=nle.estimate(display=False, dataset_sub="5", extended_stats=True, compute_shadow="extend", suffix=f"B{t}_Ext", truncate_input=t)
+    tmp = nle.estimate(
+        display=False,
+        dataset_sub="5",
+        extended_stats=True,
+        compute_shadow="extend",
+        suffix=f"B{t}_Ext",
+        truncate_input=t,
+    )
     print(f"B{t}_Ext")
     for k in tmp:
         print(k, np.mean(tmp[k]))
-    tmp=nle.estimate(display=False, dataset_sub="5", extended_stats=True, compute_shadow=True, suffix=f"B{t}_Nor", truncate_input=t)
+    tmp = nle.estimate(
+        display=False,
+        dataset_sub="5",
+        extended_stats=True,
+        compute_shadow=True,
+        suffix=f"B{t}_Nor",
+        truncate_input=t,
+    )
     print(f"B{t}_Nor")
     for k in tmp:
         print(k, np.mean(tmp[k]))
@@ -149,9 +195,9 @@ for t in [1823, 912, 456]:
 #     bins = int(samples**(1/3))
 #     Corrector(bins, samples, cache_dir="cache",workers=23, config="config.ini").compute_correction()
 
-#times = [125*2**i for i in range(7)]
-#GOOD_SESSIONS = [831882777, 816200189, 771160300, 786091066, 779839471, 778998620, 781842082, 778240327, 793224716, 839068429, 794812542, 768515987, 767871931, 840012044, 766640955, 847657808]
-#for session in GOOD_SESSIONS:
+# times = [125*2**i for i in range(7)]
+# GOOD_SESSIONS = [831882777, 816200189, 771160300, 786091066, 779839471, 778998620, 781842082, 778240327, 793224716, 839068429, 794812542, 768515987, 767871931, 840012044, 766640955, 847657808]
+# for session in GOOD_SESSIONS:
 #    for t in times:
 #        nle = NLE(config_file="config.ini", bins=0, surrogates=99, jitter=True,
 #                cache="cache", save_out=True, dataset=f"spiking_{session}", workers=23)
