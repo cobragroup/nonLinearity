@@ -29,39 +29,39 @@ regions = [
     950,
 ]
 
-nle = NLE(
-    config_file="config.ini",
-    bins=8,
-    surrogates=99,
-    verbose=True,
-    cache="cache/",
-    save_out=True,
-    dataset="trimmed_EEG_bands_time",
-    workers=23,
-)
-for t in [1823, 912, 456]:
-    tmp = nle.estimate(
-        display=False,
-        dataset_sub="5",
-        extended_stats=True,
-        compute_shadow="extend",
-        suffix=f"B{t}_Ext",
-        truncate_input=t,
-    )
-    print(f"B{t}_Ext")
-    for k in tmp:
-        print(k, np.mean(tmp[k]))
-    tmp = nle.estimate(
-        display=False,
-        dataset_sub="5",
-        extended_stats=True,
-        compute_shadow=True,
-        suffix=f"B{t}_Nor",
-        truncate_input=t,
-    )
-    print(f"B{t}_Nor")
-    for k in tmp:
-        print(k, np.mean(tmp[k]))
+# nle = NLE(
+#     config_file="config.ini",
+#     bins=8,
+#     surrogates=99,
+#     verbose=True,
+#     cache="cache/",
+#     save_out=True,
+#     dataset="trimmed_EEG_bands_time",
+#     workers=23,
+# )
+# for t in [1823, 912, 456]:
+#     tmp = nle.estimate(
+#         display=False,
+#         dataset_sub="5",
+#         extended_stats=True,
+#         compute_shadow="extend",
+#         suffix=f"B{t}_Ext",
+#         truncate_input=t,
+#     )
+#     print(f"B{t}_Ext")
+#     for k in tmp:
+#         print(k, np.mean(tmp[k]))
+#     tmp = nle.estimate(
+#         display=False,
+#         dataset_sub="5",
+#         extended_stats=True,
+#         compute_shadow=True,
+#         suffix=f"B{t}_Nor",
+#         truncate_input=t,
+#     )
+#     print(f"B{t}_Nor")
+#     for k in tmp:
+#         print(k, np.mean(tmp[k]))
 
 
 # for band in range(1, 10):
@@ -113,6 +113,25 @@ for t in [1823, 912, 456]:
 #     nle.estimate(display=False, dataset_sub=str(band),
 #                  extended_stats=True, compute_shadow=True)
 #     del nle
+
+for band in range(1, 6):
+    samples = loadmat(
+        f"/home/raffaelli/NonLinearity/NonLinearityData/iEEG/iEEG_band{band}.mat"
+    )["iEEG"].shape[0]
+    bins = round(np.power(samples, 1 / 3))
+    nle = NLE(
+        config_file="config.ini",
+        bins=bins,
+        surrogates=99,
+        cache="cache",
+        save_out=True,
+        dataset="iEEG_long",
+        workers=23,
+    )
+    nle.estimate(
+        display=False, dataset_sub=str(band), extended_stats=True, compute_shadow=True
+    )
+    del nle
 
 # nle = NLE(config_file="config.ini", bins=10, surrogates=99, cache="cache", save_out=True, dataset="FIX_iEEG_samples", workers=23)
 
