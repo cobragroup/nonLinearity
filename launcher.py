@@ -114,11 +114,30 @@ regions = [
 #                  extended_stats=True, compute_shadow=True)
 #     del nle
 
-for band in range(1, 6):
-    samples = loadmat(
-        f"/home/raffaelli/NonLinearity/NonLinearityData/iEEG/iEEG_band{band}.mat"
-    )["iEEG"].shape[0]
+# for band in range(1, 6):
+#     samples = loadmat(
+#         f"/home/raffaelli/NonLinearity/NonLinearityData/iEEG/iEEG_band{band}.mat"
+#     )["iEEG"].shape[0]
+#     bins = round(np.power(samples, 1 / 3))
+#     print(samples, bins)
+#     nle = NLE(
+#         config_file="config.ini",
+#         bins=bins,
+#         surrogates=99,
+#         cache="cache",
+#         save_out=True,
+#         dataset="iEEG_long",
+#         workers=23,
+#     )
+#     nle.estimate(
+#         display=False, dataset_sub=str(band), extended_stats=True, compute_shadow=True
+#     )
+#     del nle
+
+
+for i, samples in enumerate([1116, 2232, 3348, 8432, 12276], start=1):
     bins = round(np.power(samples, 1 / 3))
+    print(samples, bins)
     nle = NLE(
         config_file="config.ini",
         bins=bins,
@@ -127,9 +146,14 @@ for band in range(1, 6):
         save_out=True,
         dataset="iEEG_long",
         workers=23,
+        suffix=f"_asBand{i}",
     )
     nle.estimate(
-        display=False, dataset_sub=str(band), extended_stats=True, compute_shadow=True
+        display=False,
+        dataset_sub="5",
+        extended_stats=True,
+        compute_shadow=True,
+        truncate_input=samples,
     )
     del nle
 
