@@ -224,6 +224,7 @@ class Corrector:
         if (
             self.folder_name
             and not self.folder_name == self.earlyResultsPath
+            and self.folder_name != "in_memory"
             and not os.path.isfile(os.path.join(self.folder_name, self.out_file))
         ):
             np.save(os.path.join(self.folder_name, self.out_file), self.correction)
@@ -249,8 +250,12 @@ class Corrector:
             )
             plt.ylabel("True MI")
             plt.xlabel("Estimated MI")
-            if self.folder_name and not os.path.isfile(
-                f"{self.folder_name}/correctionMap_{self.bins}.pdf"
+            if (
+                self.folder_name
+                and self.folder_name != "in_memory"
+                and not os.path.isfile(
+                    f"{self.folder_name}/correctionMap_{self.bins}.pdf"
+                )
             ):
                 plt.savefig(
                     f"{self.folder_name}/correctionMap_{self.bins}.pdf",

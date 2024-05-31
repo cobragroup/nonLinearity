@@ -47,7 +47,9 @@ class NonLinearEstimator:
         bins: int = None,
         surrogates: int = None,
         cache: Union[str, bytes, os.PathLike] = "cache",
-        save_out: Union[bool, str, bytes, os.PathLike, int] = False,
+        save_out: Union[
+            bool, str, bytes, os.PathLike, int, Literal["in_memory"]
+        ] = False,
         suffix: str = "",
         retrieve: bool = True,
         jitter: Union[bool, float] = False,
@@ -310,9 +312,13 @@ class NonLinearEstimator:
         self.load_data(data=data, **kwargs)
 
         if self.save_out:
-            self.__output_folder(**kwargs)
-            with open(os.path.join(self.folder_name, "shape.json"), "w") as fp:
-                json.dump(self.mat.shape, fp)
+            if self.save_out == "in_memory":
+                self.out_data = {"input_shape": self.mat.shape}
+                self.folder_name = "in_memory"
+            else:
+                self.__output_folder(**kwargs)
+                with open(os.path.join(self.folder_name, "shape.json"), "w") as fp:
+                    json.dump(self.mat.shape, fp)
         else:
             self.folder_name = None
 
@@ -323,11 +329,15 @@ class NonLinearEstimator:
     def _single_subject_numeric(
         self, subject: int, pool: Union[pool_type, a_normal_map], compute_shadow: bool
     ):
-        if self.folder_name is not None:
+        if self.folder_name is not None and self.folder_name != "in_memory":
             base_output_name = f"subject{subject:02}_{self.bins}"
             base_output_path = os.path.join(self.folder_name, base_output_name)
 
-        if self.folder_name is not None and os.path.isfile(base_output_path + ".npy"):
+        if (
+            self.folder_name is not None
+            and self.folder_name != "in_memory"
+            and os.path.isfile(base_output_path + ".npy")
+        ):
             true_and_surrogate_MI = np.load(base_output_path + ".npy")
         else:
             true_and_surrogate_MI = np.zeros([self.pairNum, self.surrogates + 1])
@@ -344,11 +354,16 @@ class NonLinearEstimator:
             ):
                 true_and_surrogate_MI[:, ns] = tmi
             if self.save_out:
-                np.save(base_output_path + ".npy", true_and_surrogate_MI)
+                if self.folder_name == "in_memory":
+                    self.out_data[subject] = {"MI": true_and_surrogate_MI}
+                else:
+                    np.save(base_output_path + ".npy", true_and_surrogate_MI)
 
         if compute_shadow:
-            if self.folder_name is not None and os.path.isfile(
-                base_output_path + "_sha.npy"
+            if (
+                self.folder_name is not None
+                and self.folder_name != "in_memory"
+                and os.path.isfile(base_output_path + "_sha.npy")
             ):
                 true_and_surrogate_MI_shadow = np.load(base_output_path + "_sha.npy")
             else:
@@ -372,12 +387,21 @@ class NonLinearEstimator:
                     true_and_surrogate_MI_shadow[:, ns] = tmi
 
                 if self.save_out:
-                    np.save(base_output_path + "_sha.npy", true_and_surrogate_MI_shadow)
+                    if self.folder_name == "in_memory":
+                        self.out_data[subject][
+                            "MI_shadow"
+                        ] = true_and_surrogate_MI_shadow
+                    else:
+                        np.save(
+                            base_output_path + "_sha.npy", true_and_surrogate_MI_shadow
+                        )
         else:
             true_and_surrogate_MI_shadow = None
 
-        if self.folder_name is not None and os.path.isfile(
-            base_output_path + "_cor.npy"
+        if (
+            self.folder_name is not None
+            and self.folder_name != "in_memory"
+            and os.path.isfile(base_output_path + "_cor.npy")
         ):
             correlation = np.load(base_output_path + "_cor.npy")
         else:
@@ -386,7 +410,10 @@ class NonLinearEstimator:
                     np.triu_indices(self.regions, 1)
                 ]
             if self.save_out:
-                np.save(base_output_path + "_cor.npy", correlation)
+                if self.folder_name == "in_memory":
+                    self.out_data[subject]["correlation"] = correlation
+                else:
+                    np.save(base_output_path + "_cor.npy", correlation)
 
         return true_and_surrogate_MI, true_and_surrogate_MI_shadow, correlation
 
@@ -397,8 +424,10 @@ class NonLinearEstimator:
         **kwargs,
     ):
         tmp_statsNames = self.statsNames if extended_stats else self.statsNames[:3]
-        if self.folder_name is not None and os.path.isfile(
-            os.path.join(self.folder_name, "global_stats.json")
+        if (
+            self.folder_name is not None
+            and self.folder_name != "in_memory"
+            and os.path.isfile(os.path.join(self.folder_name, "global_stats.json"))
         ):
             with open(os.path.join(self.folder_name, "global_stats.json")) as fp:
                 self.global_stats = json.load(fp)
@@ -469,13 +498,18 @@ class NonLinearEstimator:
                     == globalStatsComputedSubjects
                 ), "Inconsistent global_stats.json"
 
-                plotAlreadyThere = self.folder_name is not None and os.path.isfile(
-                    os.path.join(
-                        self.folder_name, f"subject{subject:02}_{self.bins}.pdf"
+                plotAlreadyThere = (
+                    self.folder_name is not None
+                    and self.folder_name != "in_memory"
+                    and os.path.isfile(
+                        os.path.join(
+                            self.folder_name, f"subject{subject:02}_{self.bins}.pdf"
+                        )
                     )
                 )
                 plottingNeeded = (
                     self.folder_name is not None
+                    and self.folder_name != "in_memory"
                     and self.save_out
                     and not plotAlreadyThere
                 ) or self.display
@@ -517,7 +551,7 @@ class NonLinearEstimator:
                             compute_shadow,
                         )
 
-                if self.folder_name is not None:
+                if self.folder_name is not None and self.folder_name != "in_memory":
                     with open(
                         os.path.join(
                             self.folder_name,
@@ -527,9 +561,15 @@ class NonLinearEstimator:
                     ) as fp:
                         json.dump(self.global_stats, fp)
         self.save_out = self.base_save_out
-        return {
+        global_to_return = {
             k: np.array(v) if len(v) > 1 else v[0] for k, v in self.global_stats.items()
         }
+
+        if self.folder_name == "in_memory":
+            self.out_data["global_stats"] = global_to_return
+            return self.out_data
+        else:
+            return global_to_return
 
     def _smile_plot(
         self,
