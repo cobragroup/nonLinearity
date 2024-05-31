@@ -355,7 +355,7 @@ class NonLinearEstimator:
                 true_and_surrogate_MI[:, ns] = tmi
             if self.save_out:
                 if self.folder_name == "in_memory":
-                    self.out_data[subject] = {"MI": true_and_surrogate_MI}
+                    self.out_data[subject] = {"MI": np.squeeze(true_and_surrogate_MI)}
                 else:
                     np.save(base_output_path + ".npy", true_and_surrogate_MI)
 
@@ -388,9 +388,9 @@ class NonLinearEstimator:
 
                 if self.save_out:
                     if self.folder_name == "in_memory":
-                        self.out_data[subject][
-                            "MI_shadow"
-                        ] = true_and_surrogate_MI_shadow
+                        self.out_data[subject]["MI_shadow"] = np.squeeze(
+                            true_and_surrogate_MI_shadow
+                        )
                     else:
                         np.save(
                             base_output_path + "_sha.npy", true_and_surrogate_MI_shadow
