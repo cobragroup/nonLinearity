@@ -182,7 +182,10 @@ def quantile_vector(data: np.ndarray, quantile: Union[float, np.ndarray]):
 
 
 def surrogate(
-    x: np.ndarray, multivariate: bool = True, extension: int = 1
+    x: np.ndarray,
+    multivariate: bool = True,
+    extension: int = 1,
+    random_state: Union[np.random.Generator, int] = None,
 ) -> np.ndarray:
     """Generate a common angle surrogate of a N-D array (surrogates the first axis).
     Input:
@@ -192,6 +195,7 @@ def surrogate(
     Output:
     np.array containing the surrogate time series such that output shape matches input shape.
     """
+    rng = np.random.default_rng(random_state)
     if x.shape[1] > x.shape[0]:
         warnings.warn(
             "It looks you have more series than timepoints, or maybe you should transpose the input.",
@@ -203,7 +207,7 @@ def surrogate(
 
     for i in range(extension):
         rpha = np.exp(
-            2 * np.pi * np.random.rand(int(x.shape[0] / 2 + 1), *extra_shape) * 1.0j
+            2 * np.pi * rng.random([int(x.shape[0] / 2 + 1), *extra_shape]) * 1.0j
         )
         fftX1.append(fft * rpha)
 
@@ -211,7 +215,12 @@ def surrogate(
     return xs
 
 
-def task_producer(patient, Nsurrogates, multivariate=True):
+def task_producer(
+    patient,
+    Nsurrogates,
+    multivariate=True,
+    random_state: Union[np.random.Generator, int] = None,
+):
     """Normalise the distribution of data and yields original and shadows"""
     _patient = np.zeros_like(patient)
     for i in range(patient.shape[1]):
@@ -220,7 +229,7 @@ def task_producer(patient, Nsurrogates, multivariate=True):
     if multivariate:
         yield _patient
     for i in range(Nsurrogates):
-        yield surrogate(_patient, multivariate)
+        yield surrogate(_patient, multivariate, random_state)
 
 
 def adjust_jitter(jitter):

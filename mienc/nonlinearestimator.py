@@ -59,6 +59,7 @@ class NonLinearEstimator:
         truncate_input: int = None,
         workers: int = None,
         verbose: bool = False,
+        random_state: Union[np.random.Generator, int] = None,
     ):
         self.suffix = suffix
         self.retrieve = retrieve
@@ -70,6 +71,8 @@ class NonLinearEstimator:
         self.verbose = verbose
 
         self.__read_config(config_file)
+
+        self.random_state = np.random.default_rng(random_state)
 
         if ortho is not None:
             self.ortho = ortho
@@ -221,7 +224,7 @@ class NonLinearEstimator:
         if self.jitter:
             diffs = np.diff(np.sort(self.mat[:, 0, 0]))
             spa = np.min(diffs[diffs > 0])
-            self.mat += np.random.normal(0, spa * self.jitter, self.mat.shape)
+            self.mat += self.random_state.normal(0, spa * self.jitter, self.mat.shape)
 
         self.duration, self.regions, self.sessions = self.mat.shape
 
@@ -247,7 +250,7 @@ class NonLinearEstimator:
             nameParts = [os.path.splitext(os.path.split(self.file_name)[1])[0]]
         else:
             if isinstance(self.save_out, bool):
-                nameParts = ["".join(map(chr, np.random.randint(65, 91, 7)))]
+                nameParts = ["".join(map(chr, self.random_state.integers(65, 91, 7)))]
             else:
                 nameParts = [str(self.save_out)]
                 self.save_out = True
@@ -368,7 +371,10 @@ class NonLinearEstimator:
                 true_and_surrogate_MI_shadow = np.load(base_output_path + "_sha.npy")
             else:
                 shadow_mat = surrogate(
-                    self.mat[:, :, subject], multivariate=True, extension=compute_shadow
+                    self.mat[:, :, subject],
+                    multivariate=True,
+                    extension=compute_shadow,
+                    random_state=self.random_state,
                 )
                 true_and_surrogate_MI_shadow = np.zeros(
                     [self.pairNum, self.surrogates + 1]
