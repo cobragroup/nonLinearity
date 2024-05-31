@@ -29,8 +29,15 @@ class Corrector:
         retrieve: bool = True,
         config: Union[str, configparser.ConfigParser] = None,
         verbose: bool = False,
+        no_correction: bool = False,
         **kwargs,
     ):
+        self.old_correct = np.vectorize(self._correct)
+        if no_correction:
+            self.no_correction = True
+            return
+        self.no_correction = False
+
         self.bins = bins
         self.verbose = verbose
 
@@ -98,7 +105,6 @@ class Corrector:
 
         self.correction = None
         self.true_value = None
-        self.old_correct = np.vectorize(self._correct)
 
         self.out_file = f"correction_{self.samples}_{self.bins}.npy"
 
@@ -139,6 +145,11 @@ class Corrector:
 
     def compute_correction(self):
         """Computes the correction lookup table or loads the cached values."""
+        if self.no_correction:
+            self.true_value = np.full(10, np.nan)
+            self.correction = np.full_like(self.true_value, np.nan)
+            return
+
         increment = 1 / self.steps
 
         self.true_value = -0.5 * np.log(1 - (np.arange(self.steps) / self.steps) ** 2)
@@ -267,8 +278,12 @@ class Corrector:
                 plt.close()
 
     def _correct(self, I):
+        if self.no_correction:
+            return I
         index = np.argmin(np.abs(I - self.correction))
         return self.true_value[index]
 
     def correct(self, vec):
+        if self.no_correction:
+            return vec.copy()
         return correct_vector(vec, self.correction, self.true_value)

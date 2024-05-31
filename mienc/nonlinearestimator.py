@@ -282,7 +282,7 @@ class NonLinearEstimator:
         verbose: bool = False, all_matrices: bool = False for innOr
         suffix=None for __output_folder
         extended_stats=False, compute_shadow: Union[bool, Literal["extend"]] = False for _do_estimate
-        steps: int = None, iterations: int = None, samples: int = None, ensure_monotonic: bool = True for Corrector
+        steps: int = None, iterations: int = None, samples: int = None, ensure_monotonic: bool = True, no_correction: bool = False for Corrector
         """
         assert (data is not None) != bool(
             self.dataset or ("dataset" in kwargs and bool(kwargs["dataset"]))
