@@ -115,25 +115,18 @@ regions = [
 #     del nle
 
 for band in range(1, 6):
-    samples = loadmat(
-        f"/home/raffaelli/NonLinearity/NonLinearityData/iEEG/iEEG_band{band}.mat"
-    )["iEEG"].shape[0]
-    bins = round(np.power(samples, 1 / 3))
-    print(samples, bins)
-    nle = NLE(
+    NLE(
         config_file="config.ini",
-        bins=bins,
+        bins=0,
         surrogates=99,
         cache="cache",
         save_out=True,
-        dataset="iEEG_despiked",
+        dataset="iEEG_12276",
         workers=23,
         suffix=f"MF",
-    )
-    nle.estimate(
+    ).estimate(
         display=False, dataset_sub=str(band), extended_stats=True, compute_shadow=True
     )
-    del nle
 
 
 # for i, samples in enumerate([1116, 2232, 3348, 8432, 12276], start=1):
