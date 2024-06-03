@@ -3,7 +3,7 @@
 %matlab -nodisplay -nosplash -nodesktop -r "run('01a_V2V_analysis_parallel.m');exit;"
 
 % in the following line replace the path with the one from `s01_preprocessing_data.ipynb`
-directory= '/mnt/DATA/LEMON_Giulio/SELECTED';
+directory= '/your/path/';
 NSUBJECTS=14;
 
 % if needed, add conn and spm12 to the path
