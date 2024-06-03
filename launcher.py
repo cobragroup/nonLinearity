@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/home/raffaelli/anaconda/envs/dormouse/bin/python3
 from mienc.nonlinearestimator import NonLinearEstimator as NLE
 import numpy as np
 from scipy.io import loadmat
@@ -64,6 +64,63 @@ regions = [
 #         print(k, np.mean(tmp[k]))
 
 
+# nle = NLE(config_file="config.ini", bins=8, surrogates=99, verbose=True, cache="cache/", save_out=True, dataset="trimmed_EEG_bands_time", workers=23)
+# for t in [1823, 912, 456]:
+#     tmp=nle.estimate(display=False, dataset_sub="5", extended_stats=True, compute_shadow="extend", suffix=f"B{t}_Ext", truncate_input=t)
+#     print(f"B{t}_Ext")
+#     for k in tmp:
+#         print(k, np.mean(tmp[k]))
+#     tmp=nle.estimate(display=False, dataset_sub="5", extended_stats=True, compute_shadow=True, suffix=f"B{t}_Nor", truncate_input=t)
+#     print(f"B{t}_Nor")
+#     for k in tmp:
+#         print(k, np.mean(tmp[k]))
+bands = ["delta", "theta", "alpha", "beta", "gamma"]
+lengts = [600, 1116, 2232, 3348, 8432, 12276]
+for i, band in enumerate(bands, start=2):
+    for t in lengts[:i]:
+        nle = NLE(
+            config_file="config.ini",
+            surrogates=99,
+            verbose=True,
+            cache="cache/",
+            save_out=True,
+            dataset="OLO_EEG_bands",
+            workers=44,
+        )
+        tmp = nle.estimate(
+            display=False,
+            bins=0,
+            dataset_sub=band,
+            extended_stats=True,
+            compute_shadow=True,
+            suffix=f"L{t}",
+            truncate_input=t,
+        )
+        print(f"Band {band} with {t} samples")
+        for k in tmp:
+            print(k, np.mean(tmp[k]))
+    del nle
+# for i, samples in enumerate([1116, 2232, 3348, 8432, 12276], start=1):
+#     bins = round(np.power(samples, 1 / 3))
+#     print(samples, bins)
+#     nle = NLE(
+#         config_file="config.ini",
+#         bins=bins,
+#         surrogates=99,
+#         cache="cache",
+#         save_out=True,
+#         dataset="iEEG_long",
+#         workers=23,
+#         suffix=f"_asBand{i}",
+#     )
+#     nle.estimate(
+#         display=False,
+#         dataset_sub="5",
+#         extended_stats=True,
+#         compute_shadow=True,
+#         truncate_input=samples,
+#     )
+#     del nle
 # for band in range(1, 10):
 #     samples = loadmat(f"/home/raffaelli/NonLinearity/NonLinearityData/EEG_el_so_BLP_NEW/trimmed_EEG_fixedTime_band{band}.mat")["EEG"].shape[0]
 #     bins = max(8, int(np.power(samples, 1/3)))
