@@ -229,7 +229,7 @@ def task_producer(
     if multivariate:
         yield _patient
     for i in range(Nsurrogates):
-        yield surrogate(_patient, multivariate, random_state)
+        yield surrogate(_patient, multivariate, random_state=random_state)
 
 
 def adjust_jitter(jitter):
