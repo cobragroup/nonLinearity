@@ -197,7 +197,19 @@ class NonLinearEstimator:
                 tmp_mat = tmp_mat[self.field_name]
             else:
                 tmp_mat = sio.loadmat(self.file_name)[self.field_name]
-            truncate_slice = slice(None, self.truncate_input)
+            if hasattr(self.truncate_input, "__len__"):
+                if len(self.truncate_input) == 2:
+                    ti_start = self.truncate_input[0]
+                    ti_end = self.truncate_input[1]
+                elif len(self.truncate_input) == 1:
+                    ti_start = None
+                    ti_end = self.truncate_input[0]
+                else:
+                    raise ValueError("If truncate_input should have len == 1 or 2.")
+            else:
+                ti_start = None
+                ti_end = self.truncate_input
+            truncate_slice = slice(ti_start, ti_end)
             tmp_mat = tmp_mat[truncate_slice, :, self.hc_slice]
         else:
             self.file_name = None
