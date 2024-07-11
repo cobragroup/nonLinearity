@@ -288,9 +288,12 @@ def show_localised_non_linearity(
     output_prefix,
     pair_num,
     elec_num,
+    FIGURES_FOLDER,
     cut_position=(-15, -75, 27),
 ):
     global MAX_CM, MAX_CM2
+    normalistions = {subset_id: {} for subset_id in subset_identifiers}
+    values = {subset_id: {} for subset_id in subset_identifiers}
     for subset_id, subset_na in zip(subset_identifiers, subset_names):
         ks_stat = np.load(
             os.path.join(
@@ -362,7 +365,7 @@ def show_localised_non_linearity(
             np.arange(elec_num)[::step],
         )
         plt.xlabel(f"Region")
-        plt.title("True")
+        plt.title("Empiric")
 
         plt.sca(ax[1])
         plt.imshow(sig_pair_sha, interpolation="none", vmax=vmax, vmin=vmin)
@@ -382,6 +385,12 @@ def show_localised_non_linearity(
             subset_description
             + subset_na
             + f" - {np.sum(ks_p<thresh)} ({100*np.sum(ks_p<thresh)/pair_num:.3} %) significant pairs"
+        )
+        plt.savefig(
+            os.path.join(
+                FIGURES_FOLDER, f"localisation_{output_prefix}_{subset_id}_matrix.pdf"
+            ),
+            bbox_inches="tight",
         )
         plt.show()
 
@@ -423,9 +432,11 @@ def show_localised_non_linearity(
                     vcenter=sig_rg if np.sum(siginreg) > 0 else elec_num / 2,
                     vmax=elec_num - 1,
                 )
+                normalistions[subset_id]["Empiric"] = norm
+                values[subset_id]["Empiric"] = siginreg
                 plot_brain(
                     siginreg,
-                    "AAL 90 regions - True",
+                    "AAL 90 regions - Empiric",
                     cut_position,
                     ax[0],
                     div_palette,
@@ -441,6 +452,8 @@ def show_localised_non_linearity(
                     vcenter=sig_rg if np.sum(siginreg_sha) > 0 else elec_num / 2,
                     vmax=elec_num - 1,
                 )
+                normalistions[subset_id]["Shadow"] = norm
+                values[subset_id]["Shadow"] = siginreg_sha
                 plot_brain(
                     siginreg_sha,
                     "AAL 90 regions - Shadow",
@@ -485,9 +498,11 @@ def show_localised_non_linearity(
                     vcenter=sig_rg if np.sum(siginreg) > 0 else elec_num / 2,
                     vmax=elec_num - 1,
                 )
+                normalistions[subset_id]["Empiric"] = norm
+                values[subset_id]["Empiric"] = siginreg
                 plot_cap(
                     siginreg,
-                    "True",
+                    "Empiric",
                     ax[0],
                     div_palette,
                     norm=norm,
@@ -502,6 +517,8 @@ def show_localised_non_linearity(
                     vcenter=sig_rg if np.sum(siginreg_sha) > 0 else elec_num / 2,
                     vmax=elec_num - 1,
                 )
+                normalistions[subset_id]["Shadow"] = norm
+                values[subset_id]["Shadow"] = siginreg_sha
                 plot_cap(
                     siginreg_sha,
                     "Shadow",
@@ -512,5 +529,122 @@ def show_localised_non_linearity(
                 ax[0].axis("off")
                 ax[1].axis("off")
                 plt.suptitle(subset_description + subset_na)
-            plt.savefig(f"{output_prefix}_brain.pdf", bbox_inches="tight")
+            plt.savefig(
+                os.path.join(
+                    FIGURES_FOLDER, f"localisation_{output_prefix}_{subset_id}_map.pdf"
+                ),
+                bbox_inches="tight",
+            )
             plt.show()
+
+    fig = plt.figure(figsize=(15, 10))
+    if "aal" in results_file:
+        shape = len(values), 3
+    else:
+        shape = 2, len(values) + 1
+
+    gs = fig.add_gridspec(
+        shape[0],
+        shape[1],
+        width_ratios=[
+            5,
+        ]
+        * (shape[1] - 1)
+        + [0.1 * shape[1]],
+    )
+    ax = np.zeros((shape[0], shape[1] - 1), dtype=object)
+    for i in range(shape[0]):
+        for j in range(shape[1] - 1):
+            ax[i, j] = fig.add_subplot(gs[i, j])
+    ax_c = fig.add_subplot(gs[:, -1])
+
+    plt.subplots_adjust(wspace=0.05, hspace=-0.0)
+    sc = ax_c.scatter(
+        [np.nan],
+        [np.nan],
+        c=0,
+        cmap=div_palette,
+        norm=TwoSlopeNorm(vmin=0, vcenter=elec_num / 2, vmax=elec_num - 1),
+    )
+    cbar = plt.colorbar(
+        sc,
+        cax=ax_c,
+        shrink=0.35,
+        ticks=[0, elec_num / 2, elec_num - 1],
+        location="right",
+        format=FixedFormatter(
+            [
+                "no\nnon-linear\nconnections",
+                "significantly\nabove random\ngraph",
+                "complete\nnon-linear\nconnections",
+            ]
+        ),
+    )
+    for ha, tick in zip(["left", "center", "right"], ax_c.yaxis.get_majorticklabels()):
+        tick.set_horizontalalignment(ha)
+        tick.set_verticalalignment("top")
+        tick.set_rotation(90)
+        tick.set_rotation_mode("anchor")
+    if "aal" in results_file:
+        for sn, (subset_id, subset_na) in enumerate(zip(values, subset_names)):
+            plot_brain(
+                values[subset_id]["Empiric"],
+                subset_na,
+                cut_position,
+                ax[sn, 0],
+                div_palette,
+                norm=normalistions[subset_id]["Empiric"],
+            )
+            plot_brain(
+                values[subset_id]["Shadow"],
+                None,
+                cut_position,
+                ax[sn, 1],
+                div_palette,
+                norm=normalistions[subset_id]["Shadow"],
+            )
+        ax[0, 0].set_title("Empiric", pad=-50)
+        ax[0, 1].set_title("Shadow", pad=-50)
+    else:
+        for sn, (subset_id, subset_na) in enumerate(zip(values, subset_names)):
+            plot_cap(
+                values[subset_id]["Empiric"],
+                subset_na,
+                ax[0, sn],
+                div_palette,
+                norm=normalistions[subset_id]["Empiric"],
+            )
+            plot_cap(
+                values[subset_id]["Shadow"],
+                None,
+                ax[1, sn],
+                div_palette,
+                norm=normalistions[subset_id]["Shadow"],
+            )
+            ax[0, sn].axis("off")
+            ax[1, sn].axis("off")
+
+        ax[0, 0].text(
+            0,
+            0.5,
+            "Empiric",
+            horizontalalignment="right",
+            verticalalignment="center",
+            rotation="vertical",
+            transform=ax[0, 0].transAxes,
+        )
+        ax[1, 0].text(
+            0,
+            0.5,
+            "Shadow",
+            horizontalalignment="right",
+            verticalalignment="center",
+            rotation="vertical",
+            transform=ax[1, 0].transAxes,
+        )
+
+    plt.savefig(
+        os.path.join(FIGURES_FOLDER, f"localisation_{output_prefix}_summary.pdf"),
+        bbox_inches="tight",
+    )
+    plt.show()
