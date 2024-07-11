@@ -248,22 +248,27 @@ def adjust_jitter(jitter):
 
 
 class a_normal_map:
-    def __init__(self) -> None:
+    def __init__(self, *args) -> None:
         pass
 
     def imap(self, *args):
-        return list(map(*args))
+        return map(*args)
 
     def map(self, *args):
         return list(map(*args))
 
+    def close(self, *args):
+        pass
+
 
 @contextmanager
 def get_pool(workers, **kwargs):
+    if workers == 1:
+        pool = a_normal_map()
+    else:
+        pool = mp.Pool(workers)
+
     try:
-        if workers == 1:
-            yield a_normal_map()
-        else:
-            yield mp.Pool(workers)
+        yield pool
     finally:
-        pass
+        pool.close()
