@@ -362,7 +362,9 @@ class NonLinearEstimator:
                     (
                         (subject_mat, self.bins)
                         for subject_mat in task_producer(
-                            self.mat[:, :, subject], self.surrogates
+                            self.mat[:, :, subject],
+                            self.surrogates,
+                            random_state=self.random_state,
                         )
                     ),
                 )
@@ -397,7 +399,9 @@ class NonLinearEstimator:
                         (
                             (subject_mat, self.bins)
                             for subject_mat in task_producer(
-                                shadow_mat[:, :], self.surrogates
+                                shadow_mat[:, :],
+                                self.surrogates,
+                                random_state=self.random_state,
                             )
                         ),
                     )
@@ -423,7 +427,9 @@ class NonLinearEstimator:
         ):
             correlation = np.load(base_output_path + "_cor.npy")
         else:
-            for normalised in task_producer(self.mat[:, :, subject], 0):
+            for normalised in task_producer(
+                self.mat[:, :, subject], 0, random_state=self.random_state
+            ):
                 correlation = np.corrcoef(normalised, rowvar=False)[
                     np.triu_indices(self.regions, 1)
                 ]
