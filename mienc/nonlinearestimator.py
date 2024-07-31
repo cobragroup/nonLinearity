@@ -439,7 +439,31 @@ class NonLinearEstimator:
                 else:
                     np.save(base_output_path + "_cor.npy", correlation)
 
-        return true_and_surrogate_MI, true_and_surrogate_MI_shadow, correlation
+        if (
+            self.folder_name is not None
+            and self.folder_name != "in_memory"
+            and os.path.isfile(base_output_path + "_spe.npy")
+        ):
+            spearman = np.load(base_output_path + "_spe.npy")
+        else:
+            for normalised in task_producer(
+                self.mat[:, :, subject], 0, random_state=self.random_state
+            ):
+                spearman = np.corrcoef(
+                    np.argsort(np.argsort(normalised, axis=0), axis=0), rowvar=False
+                )[np.triu_indices(self.regions, 1)]
+            if self.save_out:
+                if self.folder_name == "in_memory":
+                    self.out_data[subject]["spearman"] = spearman
+                else:
+                    np.save(base_output_path + "_spe.npy", spearman)
+
+        return (
+            true_and_surrogate_MI,
+            true_and_surrogate_MI_shadow,
+            correlation,
+            spearman,
+        )
 
     def _do_estimate(
         self,
@@ -543,6 +567,7 @@ class NonLinearEstimator:
                         true_and_surrogate_MI,
                         true_and_surrogate_MI_shadow,
                         corr,
+                        spearman,
                     ) = self._single_subject_numeric(subject, pool, compute_shadow)
 
                     if globalsToBeComputed:
