@@ -6,10 +6,15 @@ then
     cd "/home/raffaelli/NonLinearity/nonLinearity/notebooks"
 fi
 
+if type jupyter; then
+    command=jupyter
+else
+    command=/home/raffaelli/NonLinearity/.venv/bin/jupyter
+fi
 
 for i in *.ipynb;
 do
-    jupyter nbconvert --clear-output --inplace $i
+    ${command} nbconvert --clear-output --inplace $i
 done
 
 cd $wd
