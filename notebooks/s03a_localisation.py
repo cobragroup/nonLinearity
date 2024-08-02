@@ -161,7 +161,7 @@ def plot_cap(
         plt.title(title)
 
 
-def HolmThresholdFromP(p_values: np.ndarray):
+def HolmThresholdFromP(p_values: np.ndarray, threshold: float=threshold):
     """Returns the Holm-Bonferroni threshold given an array of p-values.
     NOTA BENE: reject the null hypotheses when **strictly smaller** than this thresold. This corresponds to the *p-value* of the first non-rejected null hypothesis.
 
@@ -176,11 +176,11 @@ def HolmThresholdFromP(p_values: np.ndarray):
         The *p-value* of the first non-rejected hypothesis.
     """
     sorted_p = np.sort(p_values.flatten())
-    good = sorted_p < 0.05 / (sorted_p.size - np.arange(sorted_p.size))
+    good = sorted_p < threshold / (sorted_p.size - np.arange(sorted_p.size))
     which = np.argmin(good)
 
-    if which == 0 and sorted_p[-1] < 0.05:
-        return 0.05
+    if which == 0 and sorted_p[-1] < threshold:
+        return threshold
 
     return sorted_p[which]
 
@@ -338,7 +338,7 @@ def show_localised_non_linearity(
                 f"{output_prefix+'_sha'}_ks_p_{subset_id}.npy",
             )
         )
-        thresh = HolmThresholdFromP(np.concatenate([ks_p, ks_p_sha]))
+        thresh = HolmThresholdFromP(np.concatenate([ks_p, ks_p_sha]), 0.01)
         print(thresh)
         corrected = np.full(pair_num, np.nan)
         corrected[ks_p < thresh] = ks_stat[ks_p < thresh]
@@ -512,6 +512,7 @@ def show_localised_non_linearity(
                 )
                 normalistions[subset_id]["Empiric"] = norm
                 values[subset_id]["Empiric"] = siginreg
+                print(subset_description + subset_na, sig_rg, siginreg)
                 plot_cap(
                     siginreg,
                     "Empiric",
