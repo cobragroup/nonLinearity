@@ -1,4 +1,4 @@
-import os, sys, configparser, h5py
+import os, sys, configparser, json
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 
@@ -13,6 +13,7 @@ from scipy.spatial import Voronoi
 
 from nilearn import datasets, plotting, image
 import nibabel as nib
+import mne
 
 settings_parser = configparser.ConfigParser()
 settings_parser.read("localsettings.ini")
@@ -24,7 +25,7 @@ config_ini = os.path.join(MAIN_DATA_FOLDER, "config.ini")
 sys.path.append(os.path.abspath(MIENC_PATH))
 from mienc import Corrector
 
-
+bad_electrodes = ["T7", "T8", "Cz", "F7", "CP6", "PO10", "Fp2"]
 sns.set_theme("poster", "ticks")
 DATA_DIR_fMRI = os.path.join(MAIN_DATA_FOLDER, "fMRI_region_size")
 DATA_DIR_EEG = os.path.join(MAIN_DATA_FOLDER, "EEG")
@@ -44,16 +45,17 @@ for l in region_indices:
     if l in aal_atlas_centers_labels:
         reg_loc.append(np.where(image_data == int(region_indices[l])))
 
-infoMat = h5py.File(os.path.join(DATA_DIR_EEG, "info.mat"))
-vec = np.where(infoMat["elec_in_mask"])[1]
-electrode_positions = (
-    pd.read_csv(os.path.join(DATA_DIR_EEG, "electrode_positions.csv"))
-    .loc[vec, ["Labels", "x", "y", "z"]]
-    .reset_index()
+with open(os.path.join(DATA_DIR_EEG, "good_electrodes.json")) as fp:
+    electrode_names = json.load(fp)
+montage = mne.channels.make_standard_montage("standard_1020")
+electrode_positions = pd.DataFrame(montage.get_positions()["ch_pos"]).T.rename(
+    columns={0: "x", 1: "y", 2: "z"}
 )
 
+source_z = electrode_positions.z.min()
+diameter = electrode_positions.z.max() - source_z
 
-div_palette = sns.color_palette("vlag", as_cmap=True)  # plt.cm.seismic
+div_palette = sns.color_palette("vlag", as_cmap=True)
 div_palette.set_over(div_palette.get_bad())
 div_palette.set_under(color=[0.5, 0.5, 0.5, 0.5])
 div_palette.set_bad(color="grey")
@@ -104,10 +106,8 @@ def plot_cap(
     vmin=None,
     vmax=None,
     norm=None,
-    plane_distance=10,
+    plane_distance=0.1,
 ):
-    source_z = electrode_positions.z.min()
-    diameter = electrode_positions.z.max() - source_z
     electrode_positions["XP"] = (
         electrode_positions.x
         / (electrode_positions.z - source_z + plane_distance)
@@ -126,14 +126,24 @@ def plot_cap(
         normalised = (in_array - vmin) / (vmax - vmin)
     else:
         normalised = norm(in_array)
+
+    displayed_electrodes = pd.DataFrame(
+        np.concatenate([normalised, np.full(len(bad_electrodes), np.nan)]),
+        index=electrode_names + bad_electrodes,
+        columns=["activation"],
+    ).join(electrode_positions, how="left")
+
+    radius = (
+        np.max(np.sqrt(displayed_electrodes.XP**2 + displayed_electrodes.YP**2)) * 1.15
+    )
     vor = Voronoi(
         np.concatenate(
             [
-                electrode_positions[["XP", "YP"]],
+                displayed_electrodes[["XP", "YP"]],
                 np.transpose(
                     [
-                        22 * np.sin(np.linspace(0, 2 * np.pi, 100)),
-                        22 * np.cos(np.linspace(0, 2 * np.pi, 100)) - 0.5,
+                        radius * np.sin(np.linspace(0, 2 * np.pi, 100)),
+                        radius * np.cos(np.linspace(0, 2 * np.pi, 100)),
                     ]
                 ),
             ]
@@ -143,7 +153,7 @@ def plot_cap(
         plt.sca(axes)
     plt.gca().set_aspect("equal")
 
-    for i, v in enumerate(normalised):
+    for i, v in enumerate(displayed_electrodes.activation):
         region = vor.regions[vor.point_region[i]]
         vertices = np.array([vor.vertices[n] for n in region])
         plt.fill(vertices[:, 0], vertices[:, 1], color=cmap(v))
@@ -429,7 +439,7 @@ def show_localised_non_linearity(
                 sig_rg = dist.ppf(1 - 0.05 / (2 * elec_num))
                 norm = TwoSlopeNorm(
                     vmin=-0.0001,
-                    vcenter=sig_rg if np.sum(siginreg) > 0 else elec_num / 2,
+                    vcenter=(sig_rg - 0.5 if np.sum(siginreg) > 0 else elec_num / 2),
                     vmax=elec_num - 1,
                 )
                 normalistions[subset_id]["Empiric"] = norm
@@ -449,7 +459,9 @@ def show_localised_non_linearity(
                 sig_rg = dist.ppf(1 - 0.05 / (2 * elec_num))
                 norm = TwoSlopeNorm(
                     vmin=-0.0001,
-                    vcenter=sig_rg if np.sum(siginreg_sha) > 0 else elec_num / 2,
+                    vcenter=(
+                        sig_rg - 0.5 if np.sum(siginreg_sha) > 0 else elec_num / 2
+                    ),
                     vmax=elec_num - 1,
                 )
                 normalistions[subset_id]["Shadow"] = norm
@@ -495,7 +507,7 @@ def show_localised_non_linearity(
                 sig_rg = dist.ppf(1 - 0.05 / (2 * elec_num))
                 norm = TwoSlopeNorm(
                     vmin=-0.0001,
-                    vcenter=sig_rg if np.sum(siginreg) > 0 else elec_num / 2,
+                    vcenter=(sig_rg - 0.5 if np.sum(siginreg) > 0 else elec_num / 2),
                     vmax=elec_num - 1,
                 )
                 normalistions[subset_id]["Empiric"] = norm
@@ -514,7 +526,9 @@ def show_localised_non_linearity(
                 sig_rg = dist.ppf(1 - 0.05 / (2 * elec_num))
                 norm = TwoSlopeNorm(
                     vmin=-0.0001,
-                    vcenter=sig_rg if np.sum(siginreg_sha) > 0 else elec_num / 2,
+                    vcenter=(
+                        sig_rg - 0.5 if np.sum(siginreg_sha) > 0 else elec_num / 2
+                    ),
                     vmax=elec_num - 1,
                 )
                 normalistions[subset_id]["Shadow"] = norm
