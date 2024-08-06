@@ -2,7 +2,7 @@ import os, sys, configparser, json
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 
-from matplotlib.colors import TwoSlopeNorm
+from matplotlib.colors import TwoSlopeNorm, Normalize
 from matplotlib.ticker import FixedFormatter
 import seaborn as sns
 import numpy as np
@@ -59,6 +59,38 @@ div_palette = sns.color_palette("vlag", as_cmap=True)
 div_palette.set_over(div_palette.get_bad())
 div_palette.set_under(color=[0.5, 0.5, 0.5, 0.5])
 div_palette.set_bad(color="grey")
+
+
+class SignificantNormalize(Normalize):
+    def __init__(self, siglo, sighi, vmin=None, vmax=None, clip=False):
+        self.siglo = siglo
+        self.sighi = sighi
+        super().__init__(vmin, vmax, clip)
+
+    def __call__(self, value, clip=None):
+        # I'm ignoring masked values and all kinds of edge cases to make a
+        # simple example...
+        # Note also that we must extrapolate beyond vmin/vmax
+        x, y = [self.vmin, self.siglo, self.siglo, self.sighi, self.sighi, self.vmax], [
+            0,
+            1 / 3,
+            0.43,
+            0.57,
+            2 / 3,
+            1.0,
+        ]
+        return np.ma.masked_array(np.interp(value, x, y, left=-np.inf, right=np.inf))
+
+    def inverse(self, value):
+        y, x = [self.vmin, self.siglo, self.siglo, self.sighi, self.sighi, self.vmax], [
+            0,
+            1 / 3,
+            0.43,
+            0.57,
+            2 / 3,
+            1.0,
+        ]
+        return np.interp(value, x, y, left=-np.inf, right=np.inf)
 
 
 def plot_brain(
@@ -158,10 +190,10 @@ def plot_cap(
         vertices = np.array([vor.vertices[n] for n in region])
         plt.fill(vertices[:, 0], vertices[:, 1], color=cmap(v))
     if title is not None:
-        plt.title(title)
+        plt.title(title, fontsize="xx-large")
 
 
-def HolmThresholdFromP(p_values: np.ndarray, threshold: float=threshold):
+def HolmThresholdFromP(p_values: np.ndarray, threshold: float = 0.05):
     """Returns the Holm-Bonferroni threshold given an array of p-values.
     NOTA BENE: reject the null hypotheses when **strictly smaller** than this thresold. This corresponds to the *p-value* of the first non-rejected null hypothesis.
 
@@ -212,7 +244,7 @@ def compute_localised_non_linearity(
         corrct = Corrector(
             bins,
             samp,
-            folder_name=os.path.dirname(results_file).format(subset_id, bins),
+            folder_name="in_memory",  # os.path.dirname(results_file).format(subset_id, bins),
             config=config_ini,
             cache_dir=cache_dir,
         )
@@ -301,7 +333,6 @@ def show_localised_non_linearity(
     FIGURES_FOLDER,
     cut_position=(-15, -75, 27),
 ):
-    global MAX_CM, MAX_CM2
     normalistions = {subset_id: {} for subset_id in subset_identifiers}
     values = {subset_id: {} for subset_id in subset_identifiers}
     for subset_id, subset_na in zip(subset_identifiers, subset_names):
@@ -346,7 +377,7 @@ def show_localised_non_linearity(
         sig_pair[np.triu_indices(elec_num, 1)] = corrected
         sig_pair += sig_pair.T
         np.fill_diagonal(sig_pair, np.nan)
-        siginreg = np.sum(sig_pair > 0, 1)
+        siginreg = np.nansum(sig_pair, 1)  # np.sum(sig_pair > 0, 1)
         print("Non linear connections:", np.sum(siginreg) / 2)
 
         # thresh_sha = HolmThresholdFromP(ks_p_sha)
@@ -357,7 +388,7 @@ def show_localised_non_linearity(
         sig_pair_sha[np.triu_indices(elec_num, 1)] = corrected_sha
         sig_pair_sha += sig_pair_sha.T
         np.fill_diagonal(sig_pair_sha, np.nan)
-        siginreg_sha = np.sum(sig_pair_sha > 0, 1)
+        siginreg_sha = np.nansum(sig_pair_sha, 1)  # np.sum(sig_pair_sha > 0, 1)
         print("Non linear connections:", np.sum(siginreg_sha) / 2)
 
         fix, ax = plt.subplots(
@@ -405,45 +436,101 @@ def show_localised_non_linearity(
         plt.show()
 
         if (siginreg > 0).any():
-
+            layout = (3, 1) if "aal" in results_file else (1, 3)
+            spec = "height_ratios" if "aal" in results_file else "width_ratios"
             print("Siginreg max:", np.max(siginreg))
-            if "aal" in results_file:
-                fig, ax = plt.subplots(
-                    3, 1, gridspec_kw={"height_ratios": [4, 4, 0.5]}, figsize=(8, 8)
-                )
-                sc = ax[2].scatter(
-                    [np.nan],
-                    [np.nan],
-                    c=0,
-                    cmap=div_palette,
-                    norm=TwoSlopeNorm(vmin=0, vcenter=elec_num / 2, vmax=elec_num - 1),
-                )
-                cbar = plt.colorbar(
-                    sc,
-                    cax=ax[2],
-                    shrink=0.35,
-                    ticks=[0, elec_num / 2, elec_num - 1],
-                    location="bottom",
-                    format=FixedFormatter(
-                        [
-                            "no\nnon-linear\nconnections",
-                            "significantly\nabove random\ngraph",
-                            "complete\nnon-linear\nconnections",
-                        ]
-                    ),
-                )
-
-                dist = binom(
-                    elec_num - 1, np.sum(siginreg) / (elec_num * (elec_num - 1))
-                )
-                sig_rg = dist.ppf(1 - 0.05 / (2 * elec_num))
-                norm = TwoSlopeNorm(
-                    vmin=-0.0001,
-                    vcenter=(sig_rg - 0.5 if np.sum(siginreg) > 0 else elec_num / 2),
+            fig, ax = plt.subplots(
+                *layout, gridspec_kw={spec: [4, 4, 0.5]}, figsize=(8, 8)
+            )
+            sc = ax[2].scatter(
+                [np.nan],
+                [np.nan],
+                c=0,
+                cmap=div_palette,
+                norm=SignificantNormalize(
+                    vmin=0,
+                    siglo=(elec_num - 1) / 3,
+                    sighi=(elec_num - 1) * 2 / 3,
                     vmax=elec_num - 1,
+                ),
+            )
+            cbar = plt.colorbar(
+                sc,
+                cax=ax[2],
+                shrink=0.35,
+                ticks=[0, (elec_num - 1) / 3, (elec_num - 1) * 2 / 3, elec_num - 1],
+                location="bottom" if "aal" in results_file else "right",
+                format=FixedFormatter(
+                    [
+                        "no\nnon-linear\nconnections",
+                        "significantly\nbelow random\ngraph",
+                        "significantly\nabove random\ngraph",
+                        "complete\nnon-linear\nconnections",
+                    ]
+                ),
+            )
+            samples = []
+            print(
+                np.tril_indices(elec_num, -1)[0].shape,
+                np.triu(sig_pair_sha, 1).shape,
+            )
+            for i in tqdm(range(1000), desc="Null model"):
+                tmp = np.full_like(sig_pair, np.nan)
+                tmp[np.triu_indices(elec_num, 1)] = np.random.permutation(
+                    sig_pair[np.triu_indices(elec_num, 1)]
                 )
-                normalistions[subset_id]["Empiric"] = norm
-                values[subset_id]["Empiric"] = siginreg
+                tmp[np.tril_indices(elec_num, -1)] = tmp.T[
+                    np.tril_indices(elec_num, -1)
+                ]
+                samples.append(np.nansum(tmp, 1))
+            low_rg, sig_rg = np.quantile(np.concatenate(samples), [0.025, 0.975])
+            print(f"{sig_rg=} {low_rg=}")
+            norm = SignificantNormalize(
+                low_rg if np.sum(siginreg) > 0 else elec_num / 3,
+                sig_rg if np.sum(siginreg) > 0 else elec_num * 2 / 3,
+                -0.0001,
+                (
+                    (
+                        np.nanmax(siginreg)
+                        if np.nanmax(siginreg) > sig_rg
+                        else sig_rg * 1.1
+                    )
+                    if np.nansum(siginreg) > 0
+                    else elec_num - 1
+                ),
+            )
+            normalistions[subset_id]["Empiric"] = norm
+            values[subset_id]["Empiric"] = siginreg
+            samples = []
+            for i in tqdm(range(1000), desc="Null model"):
+                tmp = np.full_like(sig_pair_sha, np.nan)
+                tmp[np.triu_indices(elec_num, 1)] = np.random.permutation(
+                    sig_pair_sha[np.triu_indices(elec_num, 1)]
+                )
+                tmp[np.tril_indices(elec_num, -1)] = tmp.T[
+                    np.tril_indices(elec_num, -1)
+                ]
+                samples.append(np.nansum(tmp, 1))
+            low_rg_sha, sig_rg_sha = np.quantile(
+                np.concatenate(samples), [0.025, 0.975]
+            )
+            norm_sha = SignificantNormalize(
+                low_rg_sha if np.sum(siginreg_sha) > 0 else elec_num / 3,
+                sig_rg_sha if np.sum(siginreg_sha) > 0 else elec_num * 2 / 3,
+                -0.0001,
+                (
+                    (
+                        np.nanmax(siginreg_sha)
+                        if np.nanmax(siginreg_sha) > sig_rg
+                        else sig_rg * 1.1
+                    )
+                    if np.nansum(siginreg_sha) > 0
+                    else elec_num - 1
+                ),
+            )
+            normalistions[subset_id]["Shadow"] = norm_sha
+            values[subset_id]["Shadow"] = siginreg_sha
+            if "aal" in results_file:
                 plot_brain(
                     siginreg,
                     "AAL 90 regions - Empiric",
@@ -453,66 +540,16 @@ def show_localised_non_linearity(
                     norm=norm,
                 )  # (-15,-75,27)
 
-                dist = binom(
-                    elec_num - 1, np.sum(siginreg_sha) / (elec_num * (elec_num - 1))
-                )
-                sig_rg = dist.ppf(1 - 0.05 / (2 * elec_num))
-                norm = TwoSlopeNorm(
-                    vmin=-0.0001,
-                    vcenter=(
-                        sig_rg - 0.5 if np.sum(siginreg_sha) > 0 else elec_num / 2
-                    ),
-                    vmax=elec_num - 1,
-                )
-                normalistions[subset_id]["Shadow"] = norm
-                values[subset_id]["Shadow"] = siginreg_sha
                 plot_brain(
                     siginreg_sha,
                     "AAL 90 regions - Shadow",
                     cut_position,
                     ax[1],
                     div_palette,
-                    norm=norm,
+                    norm=norm_sha,
                 )
 
             else:
-                fig, ax = plt.subplots(
-                    1, 3, gridspec_kw={"width_ratios": [4, 4, 0.5]}, figsize=(8, 8)
-                )
-                sc = ax[2].scatter(
-                    [np.nan],
-                    [np.nan],
-                    c=0,
-                    cmap=div_palette,
-                    norm=TwoSlopeNorm(vmin=0, vcenter=elec_num / 2, vmax=elec_num - 1),
-                )
-                cbar = plt.colorbar(
-                    sc,
-                    cax=ax[2],
-                    shrink=0.35,
-                    ticks=[0, elec_num / 2, elec_num - 1],
-                    location="right",
-                    format=FixedFormatter(
-                        [
-                            "no\nnon-linear\nconnections",
-                            "significantly\nabove random\ngraph",
-                            "complete\nnon-linear\nconnections",
-                        ]
-                    ),
-                )
-
-                dist = binom(
-                    elec_num - 1, np.sum(siginreg) / (elec_num * (elec_num - 1))
-                )
-                sig_rg = dist.ppf(1 - 0.05 / (2 * elec_num))
-                norm = TwoSlopeNorm(
-                    vmin=-0.0001,
-                    vcenter=(sig_rg - 0.5 if np.sum(siginreg) > 0 else elec_num / 2),
-                    vmax=elec_num - 1,
-                )
-                normalistions[subset_id]["Empiric"] = norm
-                values[subset_id]["Empiric"] = siginreg
-                print(subset_description + subset_na, sig_rg, siginreg)
                 plot_cap(
                     siginreg,
                     "Empiric",
@@ -520,26 +557,12 @@ def show_localised_non_linearity(
                     div_palette,
                     norm=norm,
                 )
-
-                dist = binom(
-                    elec_num - 1, np.sum(siginreg_sha) / (elec_num * (elec_num - 1))
-                )
-                sig_rg = dist.ppf(1 - 0.05 / (2 * elec_num))
-                norm = TwoSlopeNorm(
-                    vmin=-0.0001,
-                    vcenter=(
-                        sig_rg - 0.5 if np.sum(siginreg_sha) > 0 else elec_num / 2
-                    ),
-                    vmax=elec_num - 1,
-                )
-                normalistions[subset_id]["Shadow"] = norm
-                values[subset_id]["Shadow"] = siginreg_sha
                 plot_cap(
                     siginreg_sha,
                     "Shadow",
                     ax[1],
                     div_palette,
-                    norm=norm,
+                    norm=norm_sha,
                 )
                 ax[0].axis("off")
                 ax[1].axis("off")
@@ -579,23 +602,31 @@ def show_localised_non_linearity(
         [np.nan],
         c=0,
         cmap=div_palette,
-        norm=TwoSlopeNorm(vmin=0, vcenter=elec_num / 2, vmax=elec_num - 1),
+        norm=SignificantNormalize(
+            vmin=0,
+            siglo=(elec_num - 1) / 3,
+            sighi=(elec_num - 1) * 2 / 3,
+            vmax=elec_num - 1,
+        ),
     )
     cbar = plt.colorbar(
         sc,
         cax=ax_c,
         shrink=0.35,
-        ticks=[0, elec_num / 2, elec_num - 1],
-        location="right",
+        ticks=[0, (elec_num - 1) / 3, (elec_num - 1) * 2 / 3, elec_num - 1],
+        location="bottom" if "aal" in results_file else "right",
         format=FixedFormatter(
             [
                 "no\nnon-linear\nconnections",
+                "significantly\nbelow random\ngraph",
                 "significantly\nabove random\ngraph",
                 "complete\nnon-linear\nconnections",
             ]
         ),
     )
-    for ha, tick in zip(["left", "center", "right"], ax_c.yaxis.get_majorticklabels()):
+    for ha, tick in zip(
+        ["left", "center", "center", "right"], ax_c.yaxis.get_majorticklabels()
+    ):
         tick.set_horizontalalignment(ha)
         tick.set_verticalalignment("top")
         tick.set_rotation(90)
@@ -647,6 +678,7 @@ def show_localised_non_linearity(
             verticalalignment="center",
             rotation="vertical",
             transform=ax[0, 0].transAxes,
+            fontsize="xx-large",
         )
         ax[1, 0].text(
             0,
@@ -656,6 +688,7 @@ def show_localised_non_linearity(
             verticalalignment="center",
             rotation="vertical",
             transform=ax[1, 0].transAxes,
+            fontsize="xx-large",
         )
 
     plt.savefig(
