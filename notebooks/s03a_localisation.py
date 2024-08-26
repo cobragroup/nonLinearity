@@ -1,19 +1,21 @@
-import os, sys, configparser, json
+import os, sys, configparser, json, re
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 
-from matplotlib.colors import TwoSlopeNorm, Normalize
+from matplotlib.colors import Normalize
 from matplotlib.ticker import FixedFormatter
 import seaborn as sns
 import numpy as np
 import pandas as pd
 
-from scipy.stats import ks_1samp, uniform, binom
+from scipy.stats import norm as norm_dist
 from scipy.spatial import Voronoi
 
 from nilearn import datasets, plotting, image
 import nibabel as nib
 import mne
+
+sns.set_theme("paper", "ticks")
 
 settings_parser = configparser.ConfigParser()
 settings_parser.read("localsettings.ini")
@@ -26,10 +28,11 @@ sys.path.append(os.path.abspath(MIENC_PATH))
 from mienc import Corrector
 
 bad_electrodes = ["T7", "T8", "Cz", "F7", "CP6", "PO10", "Fp2"]
-sns.set_theme("poster", "ticks")
+null_model_samples = 10000
 DATA_DIR_fMRI = os.path.join(MAIN_DATA_FOLDER, "fMRI_region_size")
 DATA_DIR_EEG = os.path.join(MAIN_DATA_FOLDER, "EEG")
-
+RANDOM_SEED = settings_parser.getint("global", "random_seed")
+random_state = np.random.default_rng(RANDOM_SEED)
 aal_atlas_centers = pd.read_excel(os.path.join(DATA_DIR_fMRI, "AAL_regions.xls"))
 aal_atlas_centers_labels = (
     aal_atlas_centers["<b>Labels</b>"].apply(lambda x: x.split()[1]).tolist()
@@ -47,6 +50,30 @@ for l in region_indices:
 
 with open(os.path.join(DATA_DIR_EEG, "good_electrodes.json")) as fp:
     electrode_names = json.load(fp)
+decades = {
+    "Fp": 0,
+    "AF": 10,
+    "F": 20,
+    "FC": 30,
+    "FT": 30,
+    "C": 40,
+    "T": 40,
+    "CP": 50,
+    "TP": 50,
+    "P": 60,
+    "PO": 70,
+    "O": 80,
+}
+units = {"9": 0, "7": 1, "5": 2, "3": 3, "1": 4, "z": 5, "2": 6, "4": 7, "6": 8, "8": 9}
+
+
+def elec_val(elec_name: str):
+    parts = re.match(r"([A-Z]+p?)(\d+|z)", elec_name)
+    return decades[parts.groups()[0]] + units[parts.groups()[1]]
+
+
+sort_vals = [elec_val(en) for en in electrode_names]
+map_order = np.argsort(sort_vals)
 montage = mne.channels.make_standard_montage("standard_1020")
 electrode_positions = pd.DataFrame(montage.get_positions()["ch_pos"]).T.rename(
     columns={0: "x", 1: "y", 2: "z"}
@@ -71,22 +98,36 @@ class SignificantNormalize(Normalize):
         # I'm ignoring masked values and all kinds of edge cases to make a
         # simple example...
         # Note also that we must extrapolate beyond vmin/vmax
-        x, y = [self.vmin, self.siglo, self.siglo, self.sighi, self.sighi, self.vmax], [
+        x, y = [
+            self.vmin,
+            self.siglo,
+            self.siglo,
+            self.sighi,
+            self.sighi + 0.00001,
+            self.vmax,
+        ], [
             0,
             1 / 3,
-            0.43,
-            0.57,
+            5 / 12,
+            7 / 12,
             2 / 3,
             1.0,
         ]
         return np.ma.masked_array(np.interp(value, x, y, left=-np.inf, right=np.inf))
 
     def inverse(self, value):
-        y, x = [self.vmin, self.siglo, self.siglo, self.sighi, self.sighi, self.vmax], [
+        y, x = [
+            self.vmin,
+            self.siglo,
+            self.siglo + 0.00001,
+            self.sighi,
+            self.sighi,
+            self.vmax,
+        ], [
             0,
             1 / 3,
-            0.43,
-            0.57,
+            5 / 12,
+            7 / 12,
             2 / 3,
             1.0,
         ]
@@ -249,77 +290,38 @@ def compute_localised_non_linearity(
             cache_dir=cache_dir,
         )
         corrct.compute_correction()
-
         if not (
             os.path.isfile(
                 os.path.join(
                     MAIN_DATA_FOLDER,
                     "Results",
                     "localised",
-                    f"{output_prefix}_ks_stat_{subset_id}.npy",
-                )
-            )
-            and os.path.isfile(
-                os.path.join(
-                    MAIN_DATA_FOLDER,
-                    "Results",
-                    "localised",
-                    f"{output_prefix}_ks_p_{subset_id}.npy",
+                    f"{output_prefix}_z_stat_{subset_id}.npy",
                 )
             )
         ):
-            if not os.path.isfile(
-                os.path.join(
-                    MAIN_DATA_FOLDER,
-                    "Results",
-                    "localised",
-                    f"{output_prefix}_region_quantiles_{subset_id}.npy",
+            all_values = np.zeros((subj_num, pair_num, 100))
+            for s in tqdm(range(subj_num), "Subject"):
+                all_values[s, :, :] = corrct.correct(
+                    np.load(results_file.format(subset_id, bins, s))
                 )
-            ):
-                region_quantiles = np.zeros((subj_num, pair_num))
-                for s in tqdm(range(subj_num), "Subject"):
-                    pat = np.load(results_file.format(subset_id, bins, s))
-                    true = pat[:, 0]
-                    surr = np.sort(pat[:, 1:], 1)
-                    for i in range(pair_num):
-                        region_quantiles[s, i] = np.searchsorted(
-                            surr[i, :], true[i], "left"
-                        )
-                    np.save(
-                        os.path.join(
-                            MAIN_DATA_FOLDER,
-                            "Results",
-                            "localised",
-                            f"{output_prefix}_region_quantiles_{subset_id}.npy",
-                        ),
-                        region_quantiles,
-                    )
-            ks_stat = np.zeros(pair_num)
-            ks_p = np.zeros(pair_num)
-            for i in tqdm(range(pair_num), "Pair"):
-                stat, pval = ks_1samp(
-                    region_quantiles[:, i], uniform.cdf, (0, 100), alternative="less"
-                )
-                ks_stat[i] = stat
-                ks_p[i] = pval
+            pair_z = np.empty([pair_num])
+            for p in range(pair_num):
+                mean = np.mean(all_values[:, p, 1:])
+                std = np.std(all_values[:, p, 1:].mean(0))
+                pair_z[p] = (np.mean(all_values[:, p, 0]) - mean) / std  # **2
             np.save(
                 os.path.join(
                     MAIN_DATA_FOLDER,
                     "Results",
                     "localised",
-                    f"{output_prefix}_ks_stat_{subset_id}.npy",
+                    f"{output_prefix}_z_stat_{subset_id}.npy",
                 ),
-                ks_stat,
+                pair_z,
             )
-            np.save(
-                os.path.join(
-                    MAIN_DATA_FOLDER,
-                    "Results",
-                    "localised",
-                    f"{output_prefix}_ks_p_{subset_id}.npy",
-                ),
-                ks_p,
-            )
+
+
+boundaries = np.array([0, 6, 14, 22, 28, 36, 45, 51, 54])
 
 
 def show_localised_non_linearity(
@@ -336,43 +338,28 @@ def show_localised_non_linearity(
     normalistions = {subset_id: {} for subset_id in subset_identifiers}
     values = {subset_id: {} for subset_id in subset_identifiers}
     for subset_id, subset_na in zip(subset_identifiers, subset_names):
-        ks_stat = np.load(
+        z_stat = np.load(
             os.path.join(
                 MAIN_DATA_FOLDER,
                 "Results",
                 "localised",
-                f"{output_prefix}_ks_stat_{subset_id}.npy",
+                f"{output_prefix}_z_stat_{subset_id}.npy",
             )
         )
-        ks_p = np.load(
+        z_p = norm_dist.sf(abs(z_stat))
+        z_stat_sha = np.load(
             os.path.join(
                 MAIN_DATA_FOLDER,
                 "Results",
                 "localised",
-                f"{output_prefix}_ks_p_{subset_id}.npy",
+                f"{output_prefix+'_sha'}_z_stat_{subset_id}.npy",
             )
         )
-
-        ks_stat_sha = np.load(
-            os.path.join(
-                MAIN_DATA_FOLDER,
-                "Results",
-                "localised",
-                f"{output_prefix+'_sha'}_ks_stat_{subset_id}.npy",
-            )
-        )
-        ks_p_sha = np.load(
-            os.path.join(
-                MAIN_DATA_FOLDER,
-                "Results",
-                "localised",
-                f"{output_prefix+'_sha'}_ks_p_{subset_id}.npy",
-            )
-        )
-        thresh = HolmThresholdFromP(np.concatenate([ks_p, ks_p_sha]), 0.01)
+        z_p_sha = norm_dist.sf(abs(z_stat_sha))
+        thresh = HolmThresholdFromP(np.concatenate([z_p, z_p_sha]), 0.01)
         print(thresh)
         corrected = np.full(pair_num, np.nan)
-        corrected[ks_p < thresh] = ks_stat[ks_p < thresh]
+        corrected[z_p < thresh] = z_stat[z_p < thresh]
         sig_pair = np.zeros([elec_num, elec_num])
         sig_pair[np.triu_indices(elec_num, 1)] = corrected
         sig_pair += sig_pair.T
@@ -383,7 +370,7 @@ def show_localised_non_linearity(
         # thresh_sha = HolmThresholdFromP(ks_p_sha)
 
         corrected_sha = np.full(pair_num, np.nan)
-        corrected_sha[ks_p_sha < thresh] = ks_stat_sha[ks_p_sha < thresh]
+        corrected_sha[z_p_sha < thresh] = z_stat_sha[z_p_sha < thresh]
         sig_pair_sha = np.zeros([elec_num, elec_num])
         sig_pair_sha[np.triu_indices(elec_num, 1)] = corrected_sha
         sig_pair_sha += sig_pair_sha.T
@@ -397,19 +384,47 @@ def show_localised_non_linearity(
         vmax = max(np.nanmax(sig_pair), np.nanmax(sig_pair_sha))
         vmin = min(np.nanmin(sig_pair), np.nanmin(sig_pair_sha))
         plt.sca(ax[0])
-        plt.imshow(sig_pair, interpolation="none", vmax=vmax, vmin=vmin)
-        step = 10 if elec_num < 100 else 20
-        plt.yticks(np.arange(0, elec_num, step), np.arange(elec_num)[::step])
-        step = 20 if elec_num < 100 else 40
-        plt.xticks(
-            np.arange(0, elec_num, step),
-            np.arange(elec_num)[::step],
-        )
+        if "aal" in results_file:
+            plt.imshow(sig_pair, interpolation="none", vmax=vmax, vmin=vmin)
+            step = 10 if elec_num < 100 else 20
+            plt.yticks(np.arange(0, elec_num, step), np.arange(elec_num)[::step])
+            step = 20 if elec_num < 100 else 40
+            plt.xticks(
+                np.arange(0, elec_num, step),
+                np.arange(elec_num)[::step],
+            )
+        else:
+            plt.imshow(
+                sig_pair[:, map_order][map_order, :],
+                interpolation="none",
+                vmax=vmax,
+                vmin=vmin,
+            )
+            plt.xlim(plt.xlim())
+            plt.ylim(plt.ylim())
+            plt.vlines(boundaries[1:-1] - 0.5, *plt.ylim(), colors="g")
+            plt.hlines(boundaries[1:-1] - 0.5, *plt.xlim(), colors="g")
+            plt.xticks(
+                boundaries[:-1] + np.diff(boundaries) / 2 - 0.5,
+                ["AF", "F", "FC", "C", "CP", "P", "PO", "O"],
+            )
+            plt.yticks(
+                boundaries[:-1] + np.diff(boundaries) / 2 - 0.5,
+                ["AF", "F", "FC", "C", "CP", "P", "PO", "O"],
+            )
         plt.xlabel(f"Region")
         plt.title("Empiric")
 
         plt.sca(ax[1])
-        plt.imshow(sig_pair_sha, interpolation="none", vmax=vmax, vmin=vmin)
+        if "aal" in results_file:
+            plt.imshow(sig_pair_sha, interpolation="none", vmax=vmax, vmin=vmin)
+        else:
+            plt.imshow(
+                sig_pair_sha[:, map_order][map_order, :],
+                interpolation="none",
+                vmax=vmax,
+                vmin=vmin,
+            )
         plt.yticks([])
         step = 20 if elec_num < 100 else 40
         plt.xticks(
@@ -419,17 +434,17 @@ def show_localised_non_linearity(
         plt.xlabel(f"Region")
         plt.title("Shadow")
         plt.colorbar(ax=ax[1], cax=ax[2], shrink=0.2).ax.set_ylabel(
-            "KS statistcs", rotation=90
+            "Z statistcs", rotation=90
         )
 
         plt.suptitle(
             subset_description
             + subset_na
-            + f" - {np.sum(ks_p<thresh)} ({100*np.sum(ks_p<thresh)/pair_num:.3} %) significant pairs"
+            + f" - {np.sum(z_p<thresh)} ({100*np.sum(z_p<thresh)/pair_num:.3} %) significant pairs"
         )
         plt.savefig(
             os.path.join(
-                FIGURES_FOLDER, f"localisation_{output_prefix}_{subset_id}_matrix.pdf"
+                FIGURES_FOLDER, f"localisation_Z_{output_prefix}_{subset_id}_matrix.pdf"
             ),
             bbox_inches="tight",
         )
@@ -462,10 +477,10 @@ def show_localised_non_linearity(
                 location="bottom" if "aal" in results_file else "right",
                 format=FixedFormatter(
                     [
-                        "no\nnon-linear\nconnections",
+                        "minimum\ndegree",
                         "significantly\nbelow random\ngraph",
                         "significantly\nabove random\ngraph",
-                        "complete\nnon-linear\nconnections",
+                        "maximum\ndegree",
                     ]
                 ),
             )
@@ -474,9 +489,9 @@ def show_localised_non_linearity(
                 np.tril_indices(elec_num, -1)[0].shape,
                 np.triu(sig_pair_sha, 1).shape,
             )
-            for i in tqdm(range(1000), desc="Null model"):
+            for i in tqdm(range(null_model_samples), desc="Null model"):
                 tmp = np.full_like(sig_pair, np.nan)
-                tmp[np.triu_indices(elec_num, 1)] = np.random.permutation(
+                tmp[np.triu_indices(elec_num, 1)] = random_state.permutation(
                     sig_pair[np.triu_indices(elec_num, 1)]
                 )
                 tmp[np.tril_indices(elec_num, -1)] = tmp.T[
@@ -486,9 +501,9 @@ def show_localised_non_linearity(
             low_rg, sig_rg = np.quantile(np.concatenate(samples), [0.025, 0.975])
             print(f"{sig_rg=} {low_rg=}")
             norm = SignificantNormalize(
-                low_rg if np.sum(siginreg) > 0 else elec_num / 3,
-                sig_rg if np.sum(siginreg) > 0 else elec_num * 2 / 3,
-                -0.0001,
+                low_rg if np.sum(siginreg) > 0 else 0.2,
+                sig_rg if np.sum(siginreg) > 0 else 0.3,
+                np.nanmin(siginreg[siginreg > 0]) if np.sum(siginreg) > 0 else 0.1,
                 (
                     (
                         np.nanmax(siginreg)
@@ -496,15 +511,15 @@ def show_localised_non_linearity(
                         else sig_rg * 1.1
                     )
                     if np.nansum(siginreg) > 0
-                    else elec_num - 1
+                    else 0.4
                 ),
             )
             normalistions[subset_id]["Empiric"] = norm
             values[subset_id]["Empiric"] = siginreg
             samples = []
-            for i in tqdm(range(1000), desc="Null model"):
+            for i in tqdm(range(null_model_samples), desc="Null model"):
                 tmp = np.full_like(sig_pair_sha, np.nan)
-                tmp[np.triu_indices(elec_num, 1)] = np.random.permutation(
+                tmp[np.triu_indices(elec_num, 1)] = random_state.permutation(
                     sig_pair_sha[np.triu_indices(elec_num, 1)]
                 )
                 tmp[np.tril_indices(elec_num, -1)] = tmp.T[
@@ -515,17 +530,21 @@ def show_localised_non_linearity(
                 np.concatenate(samples), [0.025, 0.975]
             )
             norm_sha = SignificantNormalize(
-                low_rg_sha if np.sum(siginreg_sha) > 0 else elec_num / 3,
-                sig_rg_sha if np.sum(siginreg_sha) > 0 else elec_num * 2 / 3,
-                -0.0001,
+                low_rg_sha if np.sum(siginreg_sha) > 0 else 0.2,
+                sig_rg_sha if np.sum(siginreg_sha) > 0 else 0.3,
+                (
+                    np.nanmin(siginreg_sha[siginreg_sha > 0])
+                    if np.sum(siginreg_sha) > 0
+                    else 0.1
+                ),
                 (
                     (
                         np.nanmax(siginreg_sha)
-                        if np.nanmax(siginreg_sha) > sig_rg
+                        if np.nanmax(siginreg_sha) > sig_rg_sha
                         else sig_rg * 1.1
                     )
                     if np.nansum(siginreg_sha) > 0
-                    else elec_num - 1
+                    else 0.4
                 ),
             )
             normalistions[subset_id]["Shadow"] = norm_sha
@@ -569,7 +588,8 @@ def show_localised_non_linearity(
                 plt.suptitle(subset_description + subset_na)
             plt.savefig(
                 os.path.join(
-                    FIGURES_FOLDER, f"localisation_{output_prefix}_{subset_id}_map.pdf"
+                    FIGURES_FOLDER,
+                    f"localisation_Z_{output_prefix}_{subset_id}_map.pdf",
                 ),
                 bbox_inches="tight",
             )
@@ -604,23 +624,23 @@ def show_localised_non_linearity(
         cmap=div_palette,
         norm=SignificantNormalize(
             vmin=0,
-            siglo=(elec_num - 1) / 3,
-            sighi=(elec_num - 1) * 2 / 3,
-            vmax=elec_num - 1,
+            siglo=1 / 3,
+            sighi=1 * 2 / 3,
+            vmax=1,
         ),
     )
     cbar = plt.colorbar(
         sc,
         cax=ax_c,
         shrink=0.35,
-        ticks=[0, (elec_num - 1) / 3, (elec_num - 1) * 2 / 3, elec_num - 1],
-        location="bottom" if "aal" in results_file else "right",
+        ticks=[0, 1 / 3, 1 * 2 / 3, 1],
+        location="right",
         format=FixedFormatter(
             [
-                "no\nnon-linear\nconnections",
+                "minimum\ndegree",
                 "significantly\nbelow random\ngraph",
                 "significantly\nabove random\ngraph",
-                "complete\nnon-linear\nconnections",
+                "maximum\ndegree",
             ]
         ),
     )
@@ -692,7 +712,7 @@ def show_localised_non_linearity(
         )
 
     plt.savefig(
-        os.path.join(FIGURES_FOLDER, f"localisation_{output_prefix}_summary.pdf"),
+        os.path.join(FIGURES_FOLDER, f"localisation_Z_{output_prefix}_summary.pdf"),
         bbox_inches="tight",
     )
     plt.show()
