@@ -652,6 +652,7 @@ def show_localised_non_linearity(
         tick.set_rotation(90)
         tick.set_rotation_mode("anchor")
     if "aal" in results_file:
+        labels = "ABC"
         for sn, (subset_id, subset_na) in enumerate(zip(values, subset_names)):
             plot_brain(
                 values[subset_id]["Empiric"],
@@ -669,8 +670,18 @@ def show_localised_non_linearity(
                 div_palette,
                 norm=normalistions[subset_id]["Shadow"],
             )
-        ax[0, 0].set_title("Empiric", pad=-50)
-        ax[0, 1].set_title("Shadow", pad=-50)
+            ax[sn, 0].text(
+                0.01,
+                0.99,
+                f"{labels[sn]}",
+                horizontalalignment="left",
+                verticalalignment="top",
+                fontweight="bold",
+                transform=ax[sn, 0].transAxes,
+                fontsize="xx-large",
+            )
+        ax[0, 0].set_title("Empiric", pad=-50, fontsize="xx-large")
+        ax[0, 1].set_title("Shadow", pad=-50, fontsize="xx-large")
     else:
         for sn, (subset_id, subset_na) in enumerate(zip(values, subset_names)):
             plot_cap(
@@ -708,6 +719,16 @@ def show_localised_non_linearity(
             verticalalignment="center",
             rotation="vertical",
             transform=ax[1, 0].transAxes,
+            fontsize="xx-large",
+        )
+        ax[0, 0].text(
+            0.01,
+            1.015,
+            f"D",
+            horizontalalignment="left",
+            verticalalignment="bottom",
+            fontweight="bold",
+            transform=ax[0, 0].transAxes,
             fontsize="xx-large",
         )
 
