@@ -4,11 +4,12 @@ import matplotlib.pyplot as plt
 
 from matplotlib.colors import Normalize
 from matplotlib.ticker import FixedFormatter
+from matplotlib.transforms import ScaledTranslation
 import seaborn as sns
 import numpy as np
 import pandas as pd
 
-from scipy.stats import norm as norm_dist
+from scipy.stats import norm as norm_dist, pearsonr
 from scipy.spatial import Voronoi
 
 from nilearn import datasets, plotting, image
@@ -73,7 +74,7 @@ def elec_val(elec_name: str):
 
 
 sort_vals = [elec_val(en) for en in electrode_names]
-map_order = np.argsort(sort_vals)
+map_order = np.argsort(sort_vals, kind="stable")
 montage = mne.channels.make_standard_montage("standard_1020")
 electrode_positions = pd.DataFrame(montage.get_positions()["ch_pos"]).T.rename(
     columns={0: "x", 1: "y", 2: "z"}
@@ -171,6 +172,32 @@ def plot_brain(
     )
 
 
+# fmt: off
+aal_order = np.argsort(
+    [
+        0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        7, 7, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 6, 6,
+        3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
+        0, 0, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+        6, 6, 6, 6, 6, 6, 6, 6, 5, 5, 5, 5, 2, 2,
+        5, 5, 5, 5, 5, 5,
+    ], kind="stable"
+)
+# fmt: on
+aal_names = [
+    "Central",
+    "Frontal",
+    "Limbic",
+    "Occipital",
+    "Parietal",
+    "Temporal",
+    "Sub.GrayNuc.",
+    "Insula",
+]
+print(aal_order)
+
+
 def plot_cap(
     in_array,
     title=None,
@@ -231,7 +258,7 @@ def plot_cap(
         vertices = np.array([vor.vertices[n] for n in region])
         plt.fill(vertices[:, 0], vertices[:, 1], color=cmap(v))
     if title is not None:
-        plt.title(title, fontsize="xx-large")
+        plt.title(title, fontsize="x-large")
 
 
 def HolmThresholdFromP(p_values: np.ndarray, threshold: float = 0.05):
@@ -322,6 +349,7 @@ def compute_localised_non_linearity(
 
 
 boundaries = np.array([0, 6, 14, 22, 28, 36, 45, 51, 54])
+aal_boundaries = np.array([0, 6, 30, 42, 56, 68, 78, 88, 90])
 
 
 def show_localised_non_linearity(
@@ -365,7 +393,7 @@ def show_localised_non_linearity(
         sig_pair += sig_pair.T
         np.fill_diagonal(sig_pair, np.nan)
         siginreg = np.nansum(sig_pair, 1)  # np.sum(sig_pair > 0, 1)
-        print("Non linear connections:", np.sum(siginreg) / 2)
+        print("Non linear connections:", np.sum(np.isfinite(sig_pair)) / 2)
 
         # thresh_sha = HolmThresholdFromP(ks_p_sha)
 
@@ -376,7 +404,7 @@ def show_localised_non_linearity(
         sig_pair_sha += sig_pair_sha.T
         np.fill_diagonal(sig_pair_sha, np.nan)
         siginreg_sha = np.nansum(sig_pair_sha, 1)  # np.sum(sig_pair_sha > 0, 1)
-        print("Non linear connections:", np.sum(siginreg_sha) / 2)
+        print("Non linear connections:", np.sum(np.isfinite(sig_pair_sha)) / 2)
 
         fix, ax = plt.subplots(
             1, 3, gridspec_kw={"width_ratios": [4, 4, 0.2]}, figsize=(12, 7)
@@ -385,13 +413,33 @@ def show_localised_non_linearity(
         vmin = min(np.nanmin(sig_pair), np.nanmin(sig_pair_sha))
         plt.sca(ax[0])
         if "aal" in results_file:
-            plt.imshow(sig_pair, interpolation="none", vmax=vmax, vmin=vmin)
-            step = 10 if elec_num < 100 else 20
-            plt.yticks(np.arange(0, elec_num, step), np.arange(elec_num)[::step])
-            step = 20 if elec_num < 100 else 40
+            plt.imshow(
+                sig_pair[:, aal_order][aal_order, :],
+                interpolation="none",
+                vmax=vmax,
+                vmin=vmin,
+            )
+            # step = 10 if elec_num < 100 else 20
+            # plt.yticks(np.arange(0, elec_num, step), np.arange(elec_num)[::step])
+            # step = 20 if elec_num < 100 else 40
+            # plt.xticks(
+            #     np.arange(0, elec_num, step),
+            #     np.arange(elec_num)[::step],
+            # )
+            plt.xlim(plt.xlim())
+            plt.ylim(plt.ylim())
+            plt.vlines(aal_boundaries[1:-1] - 0.5, *plt.ylim(), colors="g")
+            plt.hlines(aal_boundaries[1:-1] - 0.5, *plt.xlim(), colors="g")
             plt.xticks(
-                np.arange(0, elec_num, step),
-                np.arange(elec_num)[::step],
+                aal_boundaries[:-1] + np.diff(aal_boundaries) / 2 - 0.5,
+                aal_names,
+                rotation=30,
+                ha="right",
+                rotation_mode="anchor",
+            )
+            plt.yticks(
+                aal_boundaries[:-1] + np.diff(aal_boundaries) / 2 - 0.5,
+                aal_names,
             )
         else:
             plt.imshow(
@@ -417,7 +465,23 @@ def show_localised_non_linearity(
 
         plt.sca(ax[1])
         if "aal" in results_file:
-            plt.imshow(sig_pair_sha, interpolation="none", vmax=vmax, vmin=vmin)
+            plt.imshow(
+                sig_pair_sha[:, aal_order][aal_order, :],
+                interpolation="none",
+                vmax=vmax,
+                vmin=vmin,
+            )
+            plt.xlim(plt.xlim())
+            plt.ylim(plt.ylim())
+            plt.vlines(aal_boundaries[1:-1] - 0.5, *plt.ylim(), colors="g")
+            plt.hlines(aal_boundaries[1:-1] - 0.5, *plt.xlim(), colors="g")
+            plt.xticks(
+                aal_boundaries[:-1] + np.diff(aal_boundaries) / 2 - 0.5,
+                aal_names,
+                rotation=30,
+                ha="right",
+                rotation_mode="anchor",
+            )
         else:
             plt.imshow(
                 sig_pair_sha[:, map_order][map_order, :],
@@ -425,12 +489,20 @@ def show_localised_non_linearity(
                 vmax=vmax,
                 vmin=vmin,
             )
+            plt.xlim(plt.xlim())
+            plt.ylim(plt.ylim())
+            plt.vlines(boundaries[1:-1] - 0.5, *plt.ylim(), colors="g")
+            plt.hlines(boundaries[1:-1] - 0.5, *plt.xlim(), colors="g")
+            plt.xticks(
+                boundaries[:-1] + np.diff(boundaries) / 2 - 0.5,
+                ["AF", "F", "FC", "C", "CP", "P", "PO", "O"],
+            )
         plt.yticks([])
-        step = 20 if elec_num < 100 else 40
-        plt.xticks(
-            np.arange(0, elec_num, step),
-            np.arange(elec_num)[::step],
-        )
+        # step = 20 if elec_num < 100 else 40
+        # plt.xticks(
+        #     np.arange(0, elec_num, step),
+        #     np.arange(elec_num)[::step],
+        # )
         plt.xlabel(f"Region")
         plt.title("Shadow")
         plt.colorbar(ax=ax[1], cax=ax[2], shrink=0.2).ax.set_ylabel(
@@ -595,7 +667,7 @@ def show_localised_non_linearity(
             )
             plt.show()
 
-    fig = plt.figure(figsize=(15, 10))
+    fig = plt.figure(figsize=(16 / 2.54, 6 / 2.54))
     if "aal" in results_file:
         shape = len(values), 3
     else:
@@ -644,13 +716,19 @@ def show_localised_non_linearity(
             ]
         ),
     )
-    for ha, tick in zip(
-        ["left", "center", "center", "right"], ax_c.yaxis.get_majorticklabels()
+
+    for ha, off, tick in zip(
+        ["baseline", "top", "bottom", "top"],
+        [0, 1 / 10, -1 / 10, 1 / 10],
+        ax_c.yaxis.get_majorticklabels(),  # ["left", "center", "center", "right"]
     ):
-        tick.set_horizontalalignment(ha)
-        tick.set_verticalalignment("top")
-        tick.set_rotation(90)
+        tick.set_horizontalalignment("left")
+        tick.set_verticalalignment(ha)
+        tick.set_rotation(0)
         tick.set_rotation_mode("anchor")
+        tick.set_transform(
+            tick.get_transform() + ScaledTranslation(0, off, fig.dpi_scale_trans)
+        )
     if "aal" in results_file:
         labels = "ABC"
         for sn, (subset_id, subset_na) in enumerate(zip(values, subset_names)):
@@ -680,6 +758,10 @@ def show_localised_non_linearity(
                 transform=ax[sn, 0].transAxes,
                 fontsize="xx-large",
             )
+            print(
+                subset_na,
+                pearsonr(values[subset_id]["Empiric"], values[subset_id]["Shadow"]),
+            )
         ax[0, 0].set_title("Empiric", pad=-50, fontsize="xx-large")
         ax[0, 1].set_title("Shadow", pad=-50, fontsize="xx-large")
     else:
@@ -700,6 +782,10 @@ def show_localised_non_linearity(
             )
             ax[0, sn].axis("off")
             ax[1, sn].axis("off")
+            print(
+                subset_na,
+                pearsonr(values[subset_id]["Empiric"], values[subset_id]["Shadow"]),
+            )
 
         ax[0, 0].text(
             0,
@@ -709,7 +795,7 @@ def show_localised_non_linearity(
             verticalalignment="center",
             rotation="vertical",
             transform=ax[0, 0].transAxes,
-            fontsize="xx-large",
+            fontsize="large",
         )
         ax[1, 0].text(
             0,
@@ -719,18 +805,18 @@ def show_localised_non_linearity(
             verticalalignment="center",
             rotation="vertical",
             transform=ax[1, 0].transAxes,
-            fontsize="xx-large",
+            fontsize="large",
         )
-        ax[0, 0].text(
-            0.01,
-            1.015,
-            f"D",
-            horizontalalignment="left",
-            verticalalignment="bottom",
-            fontweight="bold",
-            transform=ax[0, 0].transAxes,
-            fontsize="xx-large",
-        )
+        # ax[0, 0].text(
+        #     0.01,
+        #     1.015,
+        #     f"D",
+        #     horizontalalignment="left",
+        #     verticalalignment="bottom",
+        #     fontweight="bold",
+        #     transform=ax[0, 0].transAxes,
+        #     fontsize="xx-large",
+        # )
 
     plt.savefig(
         os.path.join(FIGURES_FOLDER, f"localisation_Z_{output_prefix}_summary.pdf"),
