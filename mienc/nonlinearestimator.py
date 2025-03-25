@@ -220,7 +220,7 @@ class NonLinearEstimator:
                 tmp_mat = tmp_mat[:, :, np.newaxis]
             else:
                 raise RuntimeError(
-                    "The number of effective dimensions of input data ({}) can't be constrained to samples x regions (x subjects) format.".format(
+                    "The number of effective dimensions of input data ({}) can't be constrained to samples x series (x sessions) format.".format(
                         len(tmp_mat.shape)
                     )
                 )
@@ -238,19 +238,19 @@ class NonLinearEstimator:
             spa = np.min(diffs[diffs > 0])
             self.mat += self.random_state.normal(0, spa * self.jitter, self.mat.shape)
 
-        self.duration, self.regions, self.sessions = self.mat.shape
+        self.duration, self.series, self.sessions = self.mat.shape
 
         if self.verbose:
             print(
-                "Loaded data matrix: {} samples by {} regions by {} sessions".format(
-                    self.duration, self.regions, self.sessions
+                "Loaded data matrix: {} samples by {} series by {} sessions".format(
+                    self.duration, self.series, self.sessions
                 )
             )
 
         if self.bins == 0:
             self.bins = int(self.duration ** (1 / 3))
 
-        self.pairNum = int((self.regions * (self.regions - 1)) / 2)
+        self.pairNum = int((self.series * (self.series - 1)) / 2)
         if self.stop_saving is True:
             self.stop_saving = self.sessions
 
@@ -341,11 +341,11 @@ class NonLinearEstimator:
 
         return self._do_estimate(**kwargs)
 
-    def _single_subject_numeric(
-        self, subject: int, pool: Union[pool_type, a_normal_map], compute_shadow: bool
+    def _single_session_numeric(
+        self, session: int, pool: Union[pool_type, a_normal_map], compute_shadow: bool
     ):
         if self.folder_name is not None and self.folder_name != "in_memory":
-            base_output_name = f"subject{subject:02}_{self.bins}"
+            base_output_name = f"session{session:02}_{self.bins}"
             base_output_path = os.path.join(self.folder_name, base_output_name)
 
         if (
@@ -360,9 +360,9 @@ class NonLinearEstimator:
                 pool.imap(
                     total_mutual_information,
                     (
-                        (subject_mat, self.bins)
-                        for subject_mat in task_producer(
-                            self.mat[:, :, subject],
+                        (session_mat, self.bins)
+                        for session_mat in task_producer(
+                            self.mat[:, :, session],
                             self.surrogates,
                             random_state=self.random_state,
                         )
@@ -372,7 +372,7 @@ class NonLinearEstimator:
                 true_and_surrogate_MI[:, ns] = tmi
             if self.save_out:
                 if self.folder_name == "in_memory":
-                    self.out_data[subject] = {"MI": np.squeeze(true_and_surrogate_MI)}
+                    self.out_data[session] = {"MI": np.squeeze(true_and_surrogate_MI)}
                 else:
                     np.save(base_output_path + ".npy", true_and_surrogate_MI)
 
@@ -385,7 +385,7 @@ class NonLinearEstimator:
                 true_and_surrogate_MI_shadow = np.load(base_output_path + "_sha.npy")
             else:
                 shadow_mat = surrogate(
-                    self.mat[:, :, subject],
+                    self.mat[:, :, session],
                     multivariate=True,
                     extension=compute_shadow,
                     random_state=self.random_state,
@@ -397,8 +397,8 @@ class NonLinearEstimator:
                     pool.imap(
                         total_mutual_information,
                         (
-                            (subject_mat, self.bins)
-                            for subject_mat in task_producer(
+                            (session_mat, self.bins)
+                            for session_mat in task_producer(
                                 shadow_mat[:, :],
                                 self.surrogates,
                                 random_state=self.random_state,
@@ -410,7 +410,7 @@ class NonLinearEstimator:
 
                 if self.save_out:
                     if self.folder_name == "in_memory":
-                        self.out_data[subject]["MI_shadow"] = np.squeeze(
+                        self.out_data[session]["MI_shadow"] = np.squeeze(
                             true_and_surrogate_MI_shadow
                         )
                     else:
@@ -428,14 +428,14 @@ class NonLinearEstimator:
             correlation = np.load(base_output_path + "_cor.npy")
         else:
             for normalised in task_producer(
-                self.mat[:, :, subject], 0, random_state=self.random_state
+                self.mat[:, :, session], 0, random_state=self.random_state
             ):
                 correlation = np.corrcoef(normalised, rowvar=False)[
-                    np.triu_indices(self.regions, 1)
+                    np.triu_indices(self.series, 1)
                 ]
             if self.save_out:
                 if self.folder_name == "in_memory":
-                    self.out_data[subject]["correlation"] = correlation
+                    self.out_data[session]["correlation"] = correlation
                 else:
                     np.save(base_output_path + "_cor.npy", correlation)
 
@@ -447,14 +447,14 @@ class NonLinearEstimator:
             spearman = np.load(base_output_path + "_spe.npy")
         else:
             for normalised in task_producer(
-                self.mat[:, :, subject], 0, random_state=self.random_state
+                self.mat[:, :, session], 0, random_state=self.random_state
             ):
                 spearman = np.corrcoef(
                     np.argsort(np.argsort(normalised, axis=0), axis=0), rowvar=False
-                )[np.triu_indices(self.regions, 1)]
+                )[np.triu_indices(self.series, 1)]
             if self.save_out:
                 if self.folder_name == "in_memory":
-                    self.out_data[subject]["spearman"] = spearman
+                    self.out_data[session]["spearman"] = spearman
                 else:
                     np.save(base_output_path + "_spe.npy", spearman)
 
@@ -531,19 +531,19 @@ class NonLinearEstimator:
                 self.shadow_corrector.compute_correction()
 
         with get_pool(self.workers) as pool:
-            for subject in tqdm(
+            for session in tqdm(
                 range(self.sessions),
-                desc=f"Subject",
+                desc=f"Session",
                 leave=True,
                 disable=not self.verbose,
             ):
-                if subject >= self.stop_saving:
+                if session >= self.stop_saving:
                     self.save_out = False
-                globalStatsComputedSubjects = min(map(len, self.global_stats.values()))
-                globalsToBeComputed = globalStatsComputedSubjects < subject + 1
+                globalStatsComputedSessions = min(map(len, self.global_stats.values()))
+                globalsToBeComputed = globalStatsComputedSessions < session + 1
                 assert (
                     max(map(len, self.global_stats.values()))
-                    == globalStatsComputedSubjects
+                    == globalStatsComputedSessions
                 ), "Inconsistent global_stats.json"
 
                 plotAlreadyThere = (
@@ -551,7 +551,7 @@ class NonLinearEstimator:
                     and self.folder_name != "in_memory"
                     and os.path.isfile(
                         os.path.join(
-                            self.folder_name, f"subject{subject:02}_{self.bins}.pdf"
+                            self.folder_name, f"session{session:02}_{self.bins}.pdf"
                         )
                     )
                 )
@@ -568,7 +568,7 @@ class NonLinearEstimator:
                         true_and_surrogate_MI_shadow,
                         corr,
                         spearman,
-                    ) = self._single_subject_numeric(subject, pool, compute_shadow)
+                    ) = self._single_session_numeric(session, pool, compute_shadow)
 
                     if globalsToBeComputed:
                         for key, val in statistics(
@@ -593,7 +593,7 @@ class NonLinearEstimator:
 
                     if plottingNeeded:
                         self._smile_plot(
-                            subject,
+                            session,
                             corr,
                             true_and_surrogate_MI,
                             extended_stats,
@@ -622,7 +622,7 @@ class NonLinearEstimator:
 
     def _smile_plot(
         self,
-        subject: int,
+        session: int,
         correlation: np.ndarray,
         true_and_surrogate_MI: np.ndarray,
         extended_stats: bool,
@@ -653,21 +653,21 @@ class NonLinearEstimator:
             plt.plot(correlation[new_order], percentile99_PLOT[new_order], "g")
         plt.xlabel("correlation")
         plt.ylabel("mutual information (nats)")
-        title = f"Subject {subject} $-$ $MI_T:${self.global_stats['totalMI'][subject]:.3} vs $MI_G:${self.global_stats['gaussMI'][subject]:.3}"
+        title = f"Session {session} $-$ $MI_T:${self.global_stats['totalMI'][session]:.3} vs $MI_G:${self.global_stats['gaussMI'][session]:.3}"
         if extended_stats:
-            title += f"({self.global_stats['ratio95'][subject]:.3}>95%"
+            title += f"({self.global_stats['ratio95'][session]:.3}>95%"
             if compute_shadow:
                 title += (
-                    f"$-$ {self.global_stats['ratio95shadow'][subject]:.3}>95% shadow"
+                    f"$-$ {self.global_stats['ratio95shadow'][session]:.3}>95% shadow"
                 )
             title += ")"
         plt.title(title)
         plt.ylim(bottom=0)
         if self.folder_name is not None and not os.path.isfile(
-            f"{self.folder_name}/subject{subject:02}_{self.bins}.pdf"
+            f"{self.folder_name}/session{session:02}_{self.bins}.pdf"
         ):
             plt.savefig(
-                f"{self.folder_name}/subject{subject:02}_{self.bins}.pdf",
+                f"{self.folder_name}/session{session:02}_{self.bins}.pdf",
                 bbox_inches="tight",
             )
         if self.display:

@@ -198,7 +198,7 @@ def surrogate(
     rng = np.random.default_rng(random_state)
     if x.shape[1] > x.shape[0]:
         warnings.warn(
-            "It looks you have more series than timepoints, or maybe you should transpose the input.",
+            "It looks you have more series than samples, or maybe you should transpose the input.",
             RuntimeWarning,
         )
     fft = np.fft.rfft(x, axis=0)
@@ -216,20 +216,20 @@ def surrogate(
 
 
 def task_producer(
-    patient,
+    session,
     Nsurrogates,
     multivariate=True,
     random_state: Union[np.random.Generator, int] = None,
 ):
     """Normalise the distribution of data and yields original and shadows"""
-    _patient = np.zeros_like(patient)
-    for i in range(patient.shape[1]):
-        _patient[:, i] = normalise(patient[:, i])
+    _session = np.zeros_like(session)
+    for i in range(session.shape[1]):
+        _session[:, i] = normalise(session[:, i])
 
     if multivariate:
-        yield _patient
+        yield _session
     for i in range(Nsurrogates):
-        yield surrogate(_patient, multivariate, random_state=random_state)
+        yield surrogate(_session, multivariate, random_state=random_state)
 
 
 def adjust_jitter(jitter):
