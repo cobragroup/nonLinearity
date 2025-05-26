@@ -186,6 +186,7 @@ class Corrector:
                     fit, self.true_value[: last_decreasing + 3]
                 )
                 if self.folder_name or self.display:
+                    corr_fig = plt.figure(figsize=(4, 4))
                     try:
                         plt.plot(
                             correction[: last_decreasing + 3],
@@ -210,9 +211,9 @@ class Corrector:
                                 bbox_inches="tight",
                             )
                         if self.display:
-                            plt.show()
+                            plt.show(corr_fig.number)
                         else:
-                            plt.close()
+                            plt.close(corr_fig.number)
                     except:
                         pass
             else:
@@ -251,6 +252,7 @@ class Corrector:
                 )
             )
 
+            corr_fig2 = plt.figure(figsize=(4, 4))
             plt.title(f"RMS correction: {deviation:.4}")
             plt.plot(correction, self.true_value)
             plt.plot(self.correction, self.true_value)
@@ -273,9 +275,9 @@ class Corrector:
                     bbox_inches="tight",
                 )
             if self.display:
-                plt.show()
+                plt.show(corr_fig2.number)
             else:
-                plt.close()
+                plt.close(corr_fig2.number)
 
     def _correct(self, I):
         if self.no_correction:
