@@ -95,6 +95,15 @@ class SignificantNormalize(Normalize):
         self.sighi = sighi
         super().__init__(vmin, vmax, clip)
 
+    def tolist(self):
+        return [
+            self.siglo,
+            self.sighi,
+            self.vmin,
+            self.vmax,
+            self.clip,
+        ]
+
     def __call__(self, value, clip=None):
         # I'm ignoring masked values and all kinds of edge cases to make a
         # simple example...
@@ -363,7 +372,7 @@ def show_localised_non_linearity(
     FIGURES_FOLDER,
     cut_position=(-15, -75, 27),
 ):
-    normalistions = {subset_id: {} for subset_id in subset_identifiers}
+    normalisations = {subset_id: {} for subset_id in subset_identifiers}
     values = {subset_id: {} for subset_id in subset_identifiers}
     for subset_id, subset_na in zip(subset_identifiers, subset_names):
         z_stat = np.load(
@@ -461,7 +470,7 @@ def show_localised_non_linearity(
                 ["AF", "F", "FC", "C", "CP", "P", "PO", "O"],
             )
         plt.xlabel(f"Region")
-        plt.title("Empiric")
+        plt.title("Empirical")
 
         plt.sca(ax[1])
         if "aal" in results_file:
@@ -586,8 +595,8 @@ def show_localised_non_linearity(
                     else 0.4
                 ),
             )
-            normalistions[subset_id]["Empiric"] = norm
-            values[subset_id]["Empiric"] = siginreg
+            normalisations[subset_id]["Empirical"] = norm
+            values[subset_id]["Empirical"] = siginreg
             samples = []
             for i in tqdm(range(null_model_samples), desc="Null model"):
                 tmp = np.full_like(sig_pair_sha, np.nan)
@@ -619,12 +628,12 @@ def show_localised_non_linearity(
                     else 0.4
                 ),
             )
-            normalistions[subset_id]["Shadow"] = norm_sha
+            normalisations[subset_id]["Shadow"] = norm_sha
             values[subset_id]["Shadow"] = siginreg_sha
             if "aal" in results_file:
                 plot_brain(
                     siginreg,
-                    "AAL 90 regions - Empiric",
+                    "AAL 90 regions - Empirical",
                     cut_position,
                     ax[0],
                     div_palette,
@@ -643,7 +652,7 @@ def show_localised_non_linearity(
             else:
                 plot_cap(
                     siginreg,
-                    "Empiric",
+                    "Empirical",
                     ax[0],
                     div_palette,
                     norm=norm,
@@ -729,16 +738,50 @@ def show_localised_non_linearity(
         tick.set_transform(
             tick.get_transform() + ScaledTranslation(0, off, fig.dpi_scale_trans)
         )
+    with open(
+        os.path.join(
+            MAIN_DATA_FOLDER,
+            "Results",
+            "localised",
+            f"localisation_Z_{output_prefix}_results.json",
+        ),
+        "w",
+    ) as f:
+        json.dump(
+            {
+                k1: {k2: v2.tolist() for k2, v2 in v1.items()}
+                for k1, v1 in values.items()
+            },
+            f,
+            indent=4,
+        )
+    with open(
+        os.path.join(
+            MAIN_DATA_FOLDER,
+            "Results",
+            "localised",
+            f"localisation_Z_{output_prefix}_normalistions.json",
+        ),
+        "w",
+    ) as f:
+        json.dump(
+            {
+                k1: {k2: v2.tolist() for k2, v2 in v1.items()}
+                for k1, v1 in normalisations.items()
+            },
+            f,
+            indent=4,
+        )
     if "aal" in results_file:
         labels = "ABC"
         for sn, (subset_id, subset_na) in enumerate(zip(values, subset_names)):
             plot_brain(
-                values[subset_id]["Empiric"],
+                values[subset_id]["Empirical"],
                 subset_na,
                 cut_position,
                 ax[sn, 0],
                 div_palette,
-                norm=normalistions[subset_id]["Empiric"],
+                norm=normalisations[subset_id]["Empirical"],
             )
             plot_brain(
                 values[subset_id]["Shadow"],
@@ -746,7 +789,7 @@ def show_localised_non_linearity(
                 cut_position,
                 ax[sn, 1],
                 div_palette,
-                norm=normalistions[subset_id]["Shadow"],
+                norm=normalisations[subset_id]["Shadow"],
             )
             ax[sn, 0].text(
                 0.01,
@@ -760,37 +803,229 @@ def show_localised_non_linearity(
             )
             print(
                 subset_na,
-                pearsonr(values[subset_id]["Empiric"], values[subset_id]["Shadow"]),
+                pearsonr(values[subset_id]["Empirical"], values[subset_id]["Shadow"]),
             )
-        ax[0, 0].set_title("Empiric", pad=-50, fontsize="xx-large")
+        ax[0, 0].set_title("Empirical", pad=-50, fontsize="xx-large")
         ax[0, 1].set_title("Shadow", pad=-50, fontsize="xx-large")
     else:
         for sn, (subset_id, subset_na) in enumerate(zip(values, subset_names)):
             plot_cap(
-                values[subset_id]["Empiric"],
+                values[subset_id]["Empirical"],
                 subset_na,
                 ax[0, sn],
                 div_palette,
-                norm=normalistions[subset_id]["Empiric"],
+                norm=normalisations[subset_id]["Empirical"],
             )
             plot_cap(
                 values[subset_id]["Shadow"],
                 None,
                 ax[1, sn],
                 div_palette,
-                norm=normalistions[subset_id]["Shadow"],
+                norm=normalisations[subset_id]["Shadow"],
             )
             ax[0, sn].axis("off")
             ax[1, sn].axis("off")
             print(
                 subset_na,
-                pearsonr(values[subset_id]["Empiric"], values[subset_id]["Shadow"]),
+                pearsonr(values[subset_id]["Empirical"], values[subset_id]["Shadow"]),
             )
 
         ax[0, 0].text(
             0,
             0.5,
-            "Empiric",
+            "Empirical",
+            horizontalalignment="right",
+            verticalalignment="center",
+            rotation="vertical",
+            transform=ax[0, 0].transAxes,
+            fontsize="large",
+        )
+        ax[1, 0].text(
+            0,
+            0.5,
+            "Shadow",
+            horizontalalignment="right",
+            verticalalignment="center",
+            rotation="vertical",
+            transform=ax[1, 0].transAxes,
+            fontsize="large",
+        )
+        # ax[0, 0].text(
+        #     0.01,
+        #     1.015,
+        #     f"D",
+        #     horizontalalignment="left",
+        #     verticalalignment="bottom",
+        #     fontweight="bold",
+        #     transform=ax[0, 0].transAxes,
+        #     fontsize="xx-large",
+        # )
+
+    plt.savefig(
+        os.path.join(FIGURES_FOLDER, f"localisation_Z_{output_prefix}_summary.pdf"),
+        bbox_inches="tight",
+    )
+    plt.show()
+
+
+def plot_summary(
+    subset_names,
+    output_prefix,
+    FIGURES_FOLDER,
+    is_aal=True,
+    cut_position=(-15, -75, 27),
+):
+    with open(
+        os.path.join(
+            MAIN_DATA_FOLDER,
+            "Results",
+            "localised",
+            f"localisation_Z_{output_prefix}_results.json",
+        ),
+        "r",
+    ) as f:
+        values = {
+            k1: {k2: np.array(v2) for k2, v2 in v1.items()}
+            for k1, v1 in json.load(f).items()
+        }
+    with open(
+        os.path.join(
+            MAIN_DATA_FOLDER,
+            "Results",
+            "localised",
+            f"localisation_Z_{output_prefix}_normalistions.json",
+        ),
+        "r",
+    ) as f:
+        normalisations = {
+            k1: {k2: SignificantNormalize(*v2) for k2, v2 in v1.items()}
+            for k1, v1 in json.load(f).items()
+        }
+
+    fig = plt.figure(figsize=(16 / 2.54, 6 / 2.54))
+    if is_aal:
+        shape = len(values), 3
+    else:
+        shape = 2, len(values) + 1
+
+    gs = fig.add_gridspec(
+        shape[0],
+        shape[1],
+        width_ratios=[
+            5,
+        ]
+        * (shape[1] - 1)
+        + [0.1 * shape[1]],
+    )
+    ax = np.zeros((shape[0], shape[1] - 1), dtype=object)
+    for i in range(shape[0]):
+        for j in range(shape[1] - 1):
+            ax[i, j] = fig.add_subplot(gs[i, j])
+    ax_c = fig.add_subplot(gs[:, -1])
+
+    plt.subplots_adjust(wspace=0.05, hspace=-0.0)
+    sc = ax_c.scatter(
+        [np.nan],
+        [np.nan],
+        c=0,
+        cmap=div_palette,
+        norm=SignificantNormalize(
+            vmin=0,
+            siglo=1 / 3,
+            sighi=1 * 2 / 3,
+            vmax=1,
+        ),
+    )
+    cbar = plt.colorbar(
+        sc,
+        cax=ax_c,
+        shrink=0.35,
+        ticks=[0, 1 / 3, 1 * 2 / 3, 1],
+        location="right",
+        format=FixedFormatter(
+            [
+                "minimum\ndegree",
+                "significantly\nbelow random\ngraph",
+                "significantly\nabove random\ngraph",
+                "maximum\ndegree",
+            ]
+        ),
+    )
+
+    for ha, off, tick in zip(
+        ["baseline", "top", "bottom", "top"],
+        [0, 1 / 10, -1 / 10, 1 / 10],
+        ax_c.yaxis.get_majorticklabels(),  # ["left", "center", "center", "right"]
+    ):
+        tick.set_horizontalalignment("left")
+        tick.set_verticalalignment(ha)
+        tick.set_rotation(0)
+        tick.set_rotation_mode("anchor")
+        tick.set_transform(
+            tick.get_transform() + ScaledTranslation(0, off, fig.dpi_scale_trans)
+        )
+    if is_aal:
+        labels = "ABC"
+        for sn, (subset_id, subset_na) in enumerate(zip(values, subset_names)):
+            plot_brain(
+                values[subset_id]["Empirical"],
+                subset_na,
+                cut_position,
+                ax[sn, 0],
+                div_palette,
+                norm=normalisations[subset_id]["Empirical"],
+            )
+            plot_brain(
+                values[subset_id]["Shadow"],
+                None,
+                cut_position,
+                ax[sn, 1],
+                div_palette,
+                norm=normalisations[subset_id]["Shadow"],
+            )
+            ax[sn, 0].text(
+                0.01,
+                0.99,
+                f"{labels[sn]}",
+                horizontalalignment="left",
+                verticalalignment="top",
+                fontweight="bold",
+                transform=ax[sn, 0].transAxes,
+                fontsize="xx-large",
+            )
+            print(
+                subset_na,
+                pearsonr(values[subset_id]["Empirical"], values[subset_id]["Shadow"]),
+            )
+        ax[0, 0].set_title("Empirical", pad=-50, fontsize="xx-large")
+        ax[0, 1].set_title("Shadow", pad=-50, fontsize="xx-large")
+    else:
+        for sn, (subset_id, subset_na) in enumerate(zip(values, subset_names)):
+            plot_cap(
+                values[subset_id]["Empirical"],
+                subset_na,
+                ax[0, sn],
+                div_palette,
+                norm=normalisations[subset_id]["Empirical"],
+            )
+            plot_cap(
+                values[subset_id]["Shadow"],
+                None,
+                ax[1, sn],
+                div_palette,
+                norm=normalisations[subset_id]["Shadow"],
+            )
+            ax[0, sn].axis("off")
+            ax[1, sn].axis("off")
+            print(
+                subset_na,
+                pearsonr(values[subset_id]["Empirical"], values[subset_id]["Shadow"]),
+            )
+
+        ax[0, 0].text(
+            0,
+            0.5,
+            "Empirical",
             horizontalalignment="right",
             verticalalignment="center",
             rotation="vertical",
