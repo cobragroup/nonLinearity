@@ -1,0 +1,22 @@
+site_name: MIP2 Documentation
+
+theme:
+  name: material
+
+plugins:
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            docstring_style: google
+            show_source: true
+            show_signature: true
+
+nav:
+  - Home: index.md
+  - API Reference: 
+    - Intro: api/modules/intro.md
+    - Nonlinear Estimator: api/modules/nonlinearestimator.md
+    - Corrector: api/modules/corrector.md
+    - Support: api/modules/support.md
+    - Innovation Ortogonalisation: api/modules/innovationOrtogonalisation.md

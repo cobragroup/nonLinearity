@@ -1,0 +1,60 @@
+[build-system]
+requires = ["scikit-build-core>=0.5.0",
+    "versioningit",   # for version management
+    "cmake",         # for CMake integration
+    ]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "mienc"
+dynamic = ["version"]
+authors = [
+  { name="Giulio Tani Raffaelli", email="tani@cs.cas.cz" },
+]
+description = "A tool to compare the statistical power of different methods in detecting statistical dependence."
+readme = "README.md"
+requires-python = ">=3.10"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: C++",
+    "Operating System :: POSIX :: Linux",
+    "License :: GPL-3.0-or-later",
+]
+license-files = ["LICENSE"]
+dependencies = [
+    "numpy",
+    "scipy",
+    "matplotlib",
+    "tqdm",
+]
+
+[project.urls]
+Homepage = "https://gitlab.com/Eleutherio/nonlinearity"
+Issues = "https://gitlab.com/Eleutherio/nonlinearity/-/issues"
+
+[project.scripts]
+mienc = "mienc:main"
+
+[tool.scikit-build]
+wheel.packages = ["src/mienc"]
+
+[tool.versioningit]
+default-version = {attr = "mienc._version.__version__"} 
+default-version-srcdir = "src"
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "black",
+    "isort",
+    ]
+rep = [
+    "xlrd",
+    "h5py",
+    "notebook",
+    "pandas",
+    "seaborn",
+    "allensdk",
+]
