@@ -21,11 +21,9 @@ sns.set_theme("paper", "ticks")
 settings_parser = configparser.ConfigParser()
 settings_parser.read("localsettings.ini")
 MAIN_DATA_FOLDER = settings_parser.get("global", "data_path")
-MIENC_PATH = settings_parser.get("global", "mienc_path")
 cache_dir = os.path.join(MAIN_DATA_FOLDER, "cache")
 config_ini = os.path.join(MAIN_DATA_FOLDER, "config.ini")
 
-sys.path.append(os.path.abspath(MIENC_PATH))
 from mienc import Corrector
 
 bad_electrodes = ["T7", "T8", "Cz", "F7", "CP6", "PO10", "Fp2"]
@@ -404,8 +402,6 @@ def show_localised_non_linearity(
         siginreg = np.nansum(sig_pair, 1)  # np.sum(sig_pair > 0, 1)
         print("Non linear connections:", np.sum(np.isfinite(sig_pair)) / 2)
 
-        # thresh_sha = HolmThresholdFromP(ks_p_sha)
-
         corrected_sha = np.full(pair_num, np.nan)
         corrected_sha[z_p_sha < thresh] = z_stat_sha[z_p_sha < thresh]
         sig_pair_sha = np.zeros([elec_num, elec_num])
@@ -428,13 +424,7 @@ def show_localised_non_linearity(
                 vmax=vmax,
                 vmin=vmin,
             )
-            # step = 10 if elec_num < 100 else 20
-            # plt.yticks(np.arange(0, elec_num, step), np.arange(elec_num)[::step])
-            # step = 20 if elec_num < 100 else 40
-            # plt.xticks(
-            #     np.arange(0, elec_num, step),
-            #     np.arange(elec_num)[::step],
-            # )
+
             plt.xlim(plt.xlim())
             plt.ylim(plt.ylim())
             plt.vlines(aal_boundaries[1:-1] - 0.5, *plt.ylim(), colors="g")
@@ -507,11 +497,6 @@ def show_localised_non_linearity(
                 ["AF", "F", "FC", "C", "CP", "P", "PO", "O"],
             )
         plt.yticks([])
-        # step = 20 if elec_num < 100 else 40
-        # plt.xticks(
-        #     np.arange(0, elec_num, step),
-        #     np.arange(elec_num)[::step],
-        # )
         plt.xlabel(f"Region")
         plt.title("Shadow")
         plt.colorbar(ax=ax[1], cax=ax[2], shrink=0.2).ax.set_ylabel(
@@ -850,16 +835,6 @@ def show_localised_non_linearity(
             transform=ax[1, 0].transAxes,
             fontsize="large",
         )
-        # ax[0, 0].text(
-        #     0.01,
-        #     1.015,
-        #     f"D",
-        #     horizontalalignment="left",
-        #     verticalalignment="bottom",
-        #     fontweight="bold",
-        #     transform=ax[0, 0].transAxes,
-        #     fontsize="xx-large",
-        # )
 
     plt.savefig(
         os.path.join(FIGURES_FOLDER, f"localisation_Z_{output_prefix}_summary.pdf"),
@@ -1042,16 +1017,6 @@ def plot_summary(
             transform=ax[1, 0].transAxes,
             fontsize="large",
         )
-        # ax[0, 0].text(
-        #     0.01,
-        #     1.015,
-        #     f"D",
-        #     horizontalalignment="left",
-        #     verticalalignment="bottom",
-        #     fontweight="bold",
-        #     transform=ax[0, 0].transAxes,
-        #     fontsize="xx-large",
-        # )
 
     plt.savefig(
         os.path.join(FIGURES_FOLDER, f"localisation_Z_{output_prefix}_summary.pdf"),

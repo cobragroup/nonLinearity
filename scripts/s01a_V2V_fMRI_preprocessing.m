@@ -1,6 +1,6 @@
 %% FIND functional/structural files
 % note: this will look for all data in these folders, irrespestive of the specific download subsets entered as command-line arguments
-%matlab -nodisplay -nosplash -nodesktop -r "run('01a_V2V_analysis_parallel.m');exit;"
+% matlab -nodisplay -nosplash -nodesktop -r "run('01a_V2V_analysis_parallel.m');exit;"
 
 % in the following line replace the path with the one from `s01_preprocessing_data.ipynb`
 directory= '/your/path/';
