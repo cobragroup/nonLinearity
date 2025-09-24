@@ -36,10 +36,16 @@ class Corrector:
         self.old_correct = np.vectorize(self._correct)
         if no_correction:
             self.no_correction = True
+            self.steps = 0
             return
         self.no_correction = False
 
         self.estimator = estimator
+        if self.estimator.name == "knn":
+            print(
+                "Computing correction for KNN estimator is very slow and often unnecessary.\n"
+                "Consider calling the NonLinearEstimator.estimate with `no_correction=True`\n"
+            )
         self.verbose = verbose
 
         if config is not None:
@@ -110,6 +116,13 @@ class Corrector:
         self.out_file = f"correction_{self.samples}_{self.estimator.name}_{self.estimator.parameter}.npy"
 
         self.__retrieve(retrieve)
+        assert (
+            self.steps is not None
+        ), "The number of quantization steps of the correction has to be specified in the config file or in the call to Corrector."
+
+        assert (
+            self.iterations is not None
+        ), "The number of iterations in the sampling of Gaussian distributions for the correction has to be specified in the config file or in the call to Corrector."
 
     def __retrieve(self, retrieve):
         self.earlyResultsPath = None

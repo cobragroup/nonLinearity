@@ -178,6 +178,22 @@ void vertical_stats(double *data, int numPairs, int numSurrogates, std::vector<d
     threadCount--;
 }
 
+void vertical_stats_uncorrected(double *data, int numPairs, int numSurrogates, std::vector<double> &to_meanData)
+{
+    threadCount++;
+    int j = tasks.pop();
+    while (j >= 0)
+    {
+        for (auto i = 0; i < numPairs; i++)
+        {
+            to_meanData[j] += *(data + j + i * (numSurrogates + 1));
+        }
+
+        j = tasks.pop();
+    }
+    threadCount--;
+}
+
 returnStats statistics(double *data, int numPairs, int numSurrogates, double *estim, double *actual, int bins, int numThreads, bool extended_stats)
 {
     returnStats result;
@@ -232,10 +248,16 @@ returnStats statistics(double *data, int numPairs, int numSurrogates, double *es
     }
 
     tasks.init(numSurrogates + 1);
-    for (auto j = 0; j < numThreads; j++)
-    {
-        workers.push_back(std::thread(&vertical_stats, data, numPairs, numSurrogates, std::ref(to_meanData), std::ref(estimated), actual));
-    }
+    if (bins == 0)
+        for (auto j = 0; j < numThreads; j++)
+        {
+            workers.push_back(std::thread(&vertical_stats_uncorrected, data, numPairs, numSurrogates, std::ref(to_meanData)));
+        }
+    else
+        for (auto j = 0; j < numThreads; j++)
+        {
+            workers.push_back(std::thread(&vertical_stats, data, numPairs, numSurrogates, std::ref(to_meanData), std::ref(estimated), actual));
+        }
     while (tasks.remaining() || threadCount)
     {
         std::this_thread::sleep_for(std::chrono::milliseconds(250));

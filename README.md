@@ -22,6 +22,10 @@ Installation is easy, just:
         ```bash
         pip install .[rep]
         ```
+    1. if you want to be able to run with different estimators compile with:
+        ```bash
+        pip install .[alt]
+        ```
 # Running
 After the installation you can run `mienc` from command line or access it programmatically more flexible experiments in Python.
 
