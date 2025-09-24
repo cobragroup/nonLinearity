@@ -3,6 +3,7 @@
 
 import configparser
 import json
+from math import e
 import os
 import socket
 from multiprocessing.pool import Pool as pool_type
@@ -12,6 +13,8 @@ from warnings import warn
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy.io as sio
+from sklearn.base import estimator_html_repr
+from sklearn.cluster import estimate_bandwidth
 from tqdm import tqdm
 
 from .corrector import Corrector
@@ -20,11 +23,11 @@ from .support import (
     a_normal_map,
     adjust_jitter,
     get_pool,
-    statistics,
     surrogate,
     task_producer,
-    total_mutual_information,
 )
+from .statistics import statistics
+from .estimators import get_estimator
 
 path = os.path.dirname(os.path.realpath(__file__))
 
@@ -44,7 +47,8 @@ class NonLinearEstimator:
     def __init__(
         self,
         config_file: Union[str, bytes, os.PathLike] = None,
-        bins: int = None,
+        estimator: str = "bin",
+        parameter: int = None,
         surrogates: int = None,
         cache: Union[str, bytes, os.PathLike] = "cache",
         save_out: Union[
@@ -59,6 +63,7 @@ class NonLinearEstimator:
         truncate_input: int = None,
         workers: int = None,
         verbose: bool = False,
+        EC: bool = False,
         random_state: Union[np.random.Generator, int] = None,
     ):
         self.suffix = suffix
@@ -69,7 +74,10 @@ class NonLinearEstimator:
         self.cacheDir = cache
         self.save_out = save_out
         self.verbose = verbose
-
+        self.estimator = get_estimator(estimator, EC)
+        self.first_session = 0
+        if self.estimator.EC:
+            self.statsNames = ["mean", "std"]
         self.__read_config(config_file)
 
         self.random_state = np.random.default_rng(random_state)
@@ -77,8 +85,8 @@ class NonLinearEstimator:
         if ortho is not None:
             self.ortho = ortho
 
-        if bins is not None:
-            self.bins = bins
+        if parameter is not None:
+            self.estimator.parameter = parameter
         if surrogates is not None:
             self.surrogates = surrogates
         if workers is not None:
@@ -108,7 +116,7 @@ class NonLinearEstimator:
             self.output_folder = self.config.get(
                 "global", "output_folder", fallback=".."
             )
-            self.bins = self.config.getint("global", "bins", fallback=8)
+            self.estimator.parameter = self.config.getint("global", "bins", fallback=8)
             self.surrogates = self.config.getint("global", "surrogates", fallback=99)
 
             thisHost = socket.gethostname()
@@ -131,7 +139,7 @@ class NonLinearEstimator:
             self.display = None
             self.workers = None
             self.output_folder = None
-            self.bins = None
+            self.estimator.parameter = None
 
     def __read_config_dataset(
         self, dataset_sub=None, truncate_input=None, dataset=None, **kwargs
@@ -171,6 +179,7 @@ class NonLinearEstimator:
         hc_end = self.config.getint(self.dataset, "healthy_control_end", fallback=None)
         hc_end = hc_end if hc_end else None
         self.hc_slice = slice(hc_start, hc_end)
+        self.first_session = hc_start if hc_start else 0
 
         self.file_name = os.path.join(file_path, file_name)
         assert os.path.isfile(
@@ -247,8 +256,8 @@ class NonLinearEstimator:
                 )
             )
 
-        if self.bins == 0:
-            self.bins = int(self.duration ** (1 / 3))
+        if self.estimator.parameter < 1:
+            self.estimator.infer_parameter(self.duration)
 
         self.pairNum = int((self.series * (self.series - 1)) / 2)
         if self.stop_saving is True:
@@ -268,7 +277,7 @@ class NonLinearEstimator:
                 self.save_out = True
         if self.suffix:
             nameParts.append(str(self.suffix))
-        nameParts.append(f"bin{self.bins}")
+        nameParts.append(self.estimator.get_suffix())
         folder_name = "_".join(nameParts)
 
         if not os.path.isabs(folder_name) and self.output_folder is not None:
@@ -284,7 +293,7 @@ class NonLinearEstimator:
     def estimate(
         self,
         data=None,
-        bins=None,
+        parameter=None,
         save_out=None,
         retrieve=None,
         display=None,
@@ -305,11 +314,11 @@ class NonLinearEstimator:
         if save_out is not None:
             self.save_out = save_out
 
-        if bins is not None:
-            self.bins = bins
+        if parameter is not None:
+            self.estimator.parameter = parameter
 
-        if self.bins is None:
-            self.bins = 0
+        if self.estimator.parameter is None:
+            self.estimator.parameter = 0
 
         if isinstance(self.save_out, int):
             self.stop_saving = self.save_out
@@ -344,8 +353,11 @@ class NonLinearEstimator:
     def _single_session_numeric(
         self, session: int, pool: Union[pool_type, a_normal_map], compute_shadow: bool
     ):
+        base_output_path = ""
         if self.folder_name is not None and self.folder_name != "in_memory":
-            base_output_name = f"session{session:02}_{self.bins}"
+            base_output_name = (
+                f"session{self.first_session + session:02}_{self.estimator.parameter}"
+            )
             base_output_path = os.path.join(self.folder_name, base_output_name)
 
         if (
@@ -355,12 +367,17 @@ class NonLinearEstimator:
         ):
             true_and_surrogate_MI = np.load(base_output_path + ".npy")
         else:
-            true_and_surrogate_MI = np.zeros([self.pairNum, self.surrogates + 1])
+            if self.estimator.EC:
+                true_and_surrogate_MI = np.zeros(
+                    [self.series, self.series, self.surrogates + 1]
+                )
+            else:
+                true_and_surrogate_MI = np.zeros([self.pairNum, self.surrogates + 1])
             for ns, tmi in enumerate(
                 pool.imap(
-                    total_mutual_information,
+                    self.estimator.total_mutual_information,
                     (
-                        (session_mat, self.bins)
+                        session_mat
                         for session_mat in task_producer(
                             self.mat[:, :, session],
                             self.surrogates,
@@ -369,7 +386,10 @@ class NonLinearEstimator:
                     ),
                 )
             ):
-                true_and_surrogate_MI[:, ns] = tmi
+                if self.estimator.EC:
+                    true_and_surrogate_MI[:, :, ns] = tmi
+                else:
+                    true_and_surrogate_MI[:, ns] = tmi
             if self.save_out:
                 if self.folder_name == "in_memory":
                     self.out_data[session] = {"MI": np.squeeze(true_and_surrogate_MI)}
@@ -390,14 +410,19 @@ class NonLinearEstimator:
                     extension=compute_shadow,
                     random_state=self.random_state,
                 )
-                true_and_surrogate_MI_shadow = np.zeros(
-                    [self.pairNum, self.surrogates + 1]
-                )
+                if self.estimator.EC:
+                    true_and_surrogate_MI_shadow = np.zeros(
+                        [self.series, self.series, self.surrogates + 1]
+                    )
+                else:
+                    true_and_surrogate_MI_shadow = np.zeros(
+                        [self.pairNum, self.surrogates + 1]
+                    )
                 for ns, tmi in enumerate(
                     pool.imap(
-                        total_mutual_information,
+                        self.estimator.total_mutual_information,
                         (
-                            (session_mat, self.bins)
+                            session_mat
                             for session_mat in task_producer(
                                 shadow_mat[:, :],
                                 self.surrogates,
@@ -406,7 +431,12 @@ class NonLinearEstimator:
                         ),
                     )
                 ):
-                    true_and_surrogate_MI_shadow[:, ns] = tmi
+                    if self.estimator.EC:
+                        true_and_surrogate_MI_shadow[:, :, ns] = tmi
+                    else:
+                        true_and_surrogate_MI_shadow[:, ns] = tmi[
+                            np.triu_indices(self.series, 1)
+                        ]
 
                 if self.save_out:
                     if self.folder_name == "in_memory":
@@ -471,6 +501,7 @@ class NonLinearEstimator:
         compute_shadow: Union[bool, Literal["extend"]] = False,
         **kwargs,
     ):
+        extended_stats = extended_stats and self.surrogates > 20
         tmp_statsNames = self.statsNames if extended_stats else self.statsNames[:3]
         if (
             self.folder_name is not None
@@ -487,7 +518,7 @@ class NonLinearEstimator:
                 )
 
         self.corrector = Corrector(
-            self.bins,
+            self.estimator,
             duration=self.duration,
             folder_name=self.folder_name,
             cache_dir=self.cacheDir,
@@ -517,7 +548,7 @@ class NonLinearEstimator:
 
             else:
                 self.shadow_corrector = Corrector(
-                    self.bins,
+                    self.estimator,
                     duration=self.duration * compute_shadow,
                     folder_name=self.folder_name,
                     cache_dir=self.cacheDir,
@@ -551,7 +582,8 @@ class NonLinearEstimator:
                     and self.folder_name != "in_memory"
                     and os.path.isfile(
                         os.path.join(
-                            self.folder_name, f"session{session:02}_{self.bins}.pdf"
+                            self.folder_name,
+                            f"session{self.first_session + session:02}_{self.estimator.parameter}.pdf",
                         )
                     )
                 )
@@ -560,6 +592,7 @@ class NonLinearEstimator:
                     and self.folder_name != "in_memory"
                     and self.save_out
                     and not plotAlreadyThere
+                    and not self.estimator.EC
                 ) or self.display
 
                 if globalsToBeComputed or plottingNeeded:
@@ -573,20 +606,20 @@ class NonLinearEstimator:
                     if globalsToBeComputed:
                         for key, val in statistics(
                             true_and_surrogate_MI,
-                            self.corrector.correction,
-                            self.corrector.true_value,
-                            self.workers,
                             extended_stats,
+                            self.estimator.EC,
+                            pool,
+                            self.corrector,
                         ).items():
                             if key in self.global_stats:
                                 self.global_stats[key].append(val)
                         if compute_shadow:
                             for key, val in statistics(
                                 true_and_surrogate_MI_shadow,
-                                self.shadow_corrector.correction,
-                                self.shadow_corrector.true_value,
-                                self.workers,
                                 extended_stats,
+                                self.estimator.EC,
+                                pool,
+                                self.corrector,
                             ).items():
                                 if key in self.global_stats:
                                     self.global_stats[key + "shadow"].append(val)
@@ -628,26 +661,33 @@ class NonLinearEstimator:
         extended_stats: bool,
         compute_shadow: bool,
     ):
-        if self.surrogates > 0:
-            corrected_percentile01pointer = (self.surrogates * (0.01) - 0.5) / (
-                self.surrogates - 1
-            )
-            corrected_percentile99pointer = (self.surrogates * (0.99) - 0.5) / (
-                self.surrogates - 1
-            )
         corrected_statsMI = self.corrector.correct(true_and_surrogate_MI)
 
         plt.scatter(correlation, corrected_statsMI[:, 0])
         new_order = np.argsort(correlation)
         expected = -0.5 * np.log(1 - correlation**2)
         plt.plot(correlation[new_order], expected[new_order], "purple")
-        if self.surrogates > 0:
-            pair_gauss_mi = np.mean(corrected_statsMI[:, 1:], 1)
-            percentile01_PLOT, percentile99_PLOT = np.quantile(
-                corrected_statsMI[:, 1:],
-                [corrected_percentile01pointer, corrected_percentile99pointer],
-                1,
+        if self.surrogates > 50:
+            corrected_percentile01pointer = (self.surrogates * (0.01) - 0.5) / (
+                self.surrogates - 1
             )
+            corrected_percentile99pointer = (self.surrogates * (0.99) - 0.5) / (
+                self.surrogates - 1
+            )
+            pair_gauss_mi = np.mean(corrected_statsMI[:, 1:], 1)
+            try:
+                percentile01_PLOT, percentile99_PLOT = np.quantile(
+                    corrected_statsMI[:, 1:],
+                    [corrected_percentile01pointer, corrected_percentile99pointer],
+                    1,
+                )
+            except:
+                print(
+                    corrected_percentile01pointer,
+                    corrected_percentile99pointer,
+                    self.surrogates,
+                )
+                raise
             plt.plot(correlation[new_order], pair_gauss_mi[new_order], "r")
             plt.plot(correlation[new_order], percentile01_PLOT[new_order], "lightblue")
             plt.plot(correlation[new_order], percentile99_PLOT[new_order], "g")
@@ -664,10 +704,10 @@ class NonLinearEstimator:
         plt.title(title)
         plt.ylim(bottom=0)
         if self.folder_name is not None and not os.path.isfile(
-            f"{self.folder_name}/session{session:02}_{self.bins}.pdf"
+            f"{self.folder_name}/session{self.first_session + session:02}_{self.estimator.parameter}.pdf"
         ):
             plt.savefig(
-                f"{self.folder_name}/session{session:02}_{self.bins}.pdf",
+                f"{self.folder_name}/session{self.first_session + session:02}_{self.estimator.parameter}.pdf",
                 bbox_inches="tight",
             )
         if self.display:

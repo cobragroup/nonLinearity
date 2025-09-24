@@ -71,7 +71,7 @@ double entropy(std::vector<int> vec, double norm)
     }
     return entr;
 }
-double pair_mutual_information(double *x, double *y, int times, int binNo)
+double binning_pair_mutual_information(double *x, double *y, int times, int binNo)
 {
     std::vector<double> xbins = bin_loc(x, times, binNo), ybins = bin_loc(y, times, binNo);
     std::vector<int> px(binNo, 0), py(binNo, 0), pxy(binNo * binNo, 0);
@@ -88,7 +88,7 @@ double pair_mutual_information(double *x, double *y, int times, int binNo)
     return entr;
 }
 
-void total_mutual_information(double *data, int times, int regions, int binNo, double *out)
+void binning_total_mutual_information(double *data, int times, int regions, int binNo, double *out)
 {
     std::vector<std::vector<int>> idx;
     std::vector<double> ex(regions, 0);

@@ -659,11 +659,11 @@ class NonLinearEstimator:
         compute_shadow: bool,
     ):
         if self.surrogates > 1:
-            corrected_percentile01pointer = (self.surrogates * (0.01) - 0.5) / (
-                self.surrogates - 1
+            corrected_percentile01pointer = (
+                (self.surrogates - 0.5) * (0.01) / (self.surrogates - 1)
             )
-            corrected_percentile99pointer = (self.surrogates * (0.99) - 0.5) / (
-                self.surrogates - 1
+            corrected_percentile99pointer = (
+                (self.surrogates - 0.5) * (0.99) / (self.surrogates - 1)
             )
         corrected_statsMI = self.corrector.correct(true_and_surrogate_MI)
 
