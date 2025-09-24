@@ -36,7 +36,7 @@ After installing `mienc` with the optional dependencies using `pip install .[rep
 
 Edit the file `data/localsettings.ini` adding a path to a folder where all the downloads and results will go.
 
-Run the notebooks in the scrips folder from s01 to s03. You will also need a working Matlab installation for the processing of the fMRI data for the test-retest section and run script s01a when invited to do so in the notebook s01 (after editing a few lines).
+Run the notebooks in the scrips folder from s01 to s03. You will also need a working Matlab installation with conn and spm12 for the processing of the fMRI data for the test-retest section and run script s01a when invited to do so in the notebook s01 (after editing a few lines).
 
 Wait.
 
