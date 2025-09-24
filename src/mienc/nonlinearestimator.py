@@ -63,7 +63,7 @@ class NonLinearEstimator:
         truncate_input: int = None,
         workers: int = None,
         verbose: bool = False,
-        EC: bool = False,
+        EC: int = 0,
         random_state: Union[np.random.Generator, int] = None,
     ):
         self.suffix = suffix

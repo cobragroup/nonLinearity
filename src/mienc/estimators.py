@@ -8,7 +8,7 @@ class GenericEstimator:
     name = ""
 
     def __init__(self):
-        self._EC = False
+        self._EC = 0
         self._parameter = 0
 
     def single_iter(self, data: Tuple[ArrayLike, ArrayLike, int]):
@@ -45,11 +45,15 @@ class GenericEstimator:
 
     @property
     def EC(self):
-        return self._EC
+        return bool(self._EC)
 
     @EC.setter
-    def EC(self, value: bool):
+    def EC(self, value: int):
         self._EC = value
+
+    @property
+    def delay(self):
+        return self._EC
 
     @property
     def parameter(self):
@@ -90,7 +94,7 @@ class BinEstimator(GenericEstimator):
 class KNNEstimator(GenericEstimator):
     name = "knn"
 
-    def __init__(self, effective_connectivity: bool = False):
+    def __init__(self, effective_connectivity: int = 0):
         try:
             from tigramite.independence_tests.cmiknn import CMIknn
 
@@ -115,39 +119,55 @@ class KNNEstimator(GenericEstimator):
     def total_mutual_information(self, data: np.ndarray):
         estim = self.CMIknn(knn=self._parameter, workers=1, transform="none")
         out = np.zeros([data.shape[1], data.shape[1]])
-        indices = np.array([0, 1, 2]) if self._EC else np.array([0, 1])
+        indices = np.array([0, 1, 2]) if self.EC else np.array([0, 1])
         for i in range(data.shape[1]):
             for j in range(i + 1, data.shape[1]):
                 if self._EC:
-                    input = np.stack([data[:-1, i], data[1:, j], data[:-1, j]], axis=0)
+                    input = np.stack(
+                        [
+                            data[: -self.delay, i],
+                            data[self.delay :, j],
+                            data[: -self.delay, j],
+                        ],
+                        axis=0,
+                    )
                     out[i, j] = estim.get_dependence_measure(input, indices)
-                    input = np.stack([data[:-1, j], data[1:, i], data[:-1, i]], axis=0)
+                    input = np.stack(
+                        [
+                            data[: -self.delay, j],
+                            data[self.delay :, i],
+                            data[: -self.delay, i],
+                        ],
+                        axis=0,
+                    )
                     out[j, i] = estim.get_dependence_measure(input, indices)
                 else:
                     input = np.stack([data[:, i], data[:, j]], axis=0)
                     out[i, j] = estim.get_dependence_measure(input, indices)
                     out[j, i] = out[i, j]
 
-        return out if self._EC else out[np.triu_indices(data.shape[1], 1)]
+        return out if self.EC else out[np.triu_indices(data.shape[1], 1)]
 
     def get_suffix(self) -> str:
-        return f"_{'EC' if self._EC else ''}_{self.parameter}nn"
+        return f"_{f'EC{self.delay}' if self.EC else ''}_{self.parameter}nn"
 
     def infer_parameter(self, duration: int):
         if self._parameter == 0:
             self._parameter = 1
 
 
-def get_estimator(
-    estimator_name: str, effective_connectivity: bool
-) -> GenericEstimator:
+def get_estimator(estimator_name: str, effective_connectivity: int) -> GenericEstimator:
     if estimator_name.lower() in ["bin", "binning", "binning_estimator"]:
         return BinEstimator()
     elif estimator_name.lower() in ["knn", "knn_estimator"]:
         return KNNEstimator(effective_connectivity)
     elif estimator_name.lower() in [
         "chatterje",
-        "chatterje_estimator",
+        "chatterje_correlation",
+    ]:
+        return GenericEstimator()
+    elif estimator_name.lower() in [
+        "dchatterje",
         "chatterje_distance",
     ]:
         return GenericEstimator()
