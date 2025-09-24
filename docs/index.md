@@ -41,17 +41,3 @@ Run the notebooks in the scrips folder from s01 to s03. You will also need a wor
 Wait.
 
 Done.
-
-# Reading the documentation
-
-If I didn't upload it somewhere else, from the `nonLinearity` folder run:
-```bash
-pip install -r docs/requirements.txt
-```
-to get the right packages.
-
-Now you can read the documentation running:
-```bash
-mkdocs serve
-```
-And opening your browser at: `http://127.0.0.1:8000/`.
