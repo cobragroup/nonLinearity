@@ -44,7 +44,7 @@ Done.
 
 # Reading the documentation
 
-If I didn't upload it somewhere else, from the `mip2` folder run:
+If I didn't upload it somewhere else, from the `nonLinearity` folder run:
 ```bash
 pip install -r docs/requirements.txt
 ```

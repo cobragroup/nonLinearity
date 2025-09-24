@@ -5,7 +5,7 @@ import sys
 
 def load_lib():
     """Locate and load the bundled C++ shared library with ctypes."""
-    lib_dir = resources.files("mip2._libs")
+    lib_dir = resources.files("mienc._libs")
 
     # Platform-specific names
     candidates = []

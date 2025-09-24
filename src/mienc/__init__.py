@@ -3,6 +3,7 @@ import argparse
 
 from .corrector import Corrector
 from .nonlinearestimator import NonLinearEstimator
+from ._version import __version__
 
 
 def main():

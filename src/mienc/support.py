@@ -3,7 +3,7 @@ import os
 import warnings
 from contextlib import contextmanager
 from ctypes import POINTER, c_double, c_int, c_bool
-from typing import Union
+from typing import Union, Tuple
 from .bindings import (
     c_pair_mutual_information,
     c_total_mutual_information,
@@ -13,6 +13,7 @@ from .bindings import (
 )
 
 import numpy as np
+from numpy.typing import ArrayLike
 from scipy.stats import norm
 
 el_path = os.path.abspath(os.path.dirname(__file__))
@@ -20,28 +21,72 @@ warnings.simplefilter("once", lineno=94, append=True)
 warnings.simplefilter("once", category=RuntimeWarning, append=True)
 
 
-def normalise(vec):
+def normalise(vec, axis=0):
+    """
+    Normalises a given vector using the cumulative distribution function of a standard normal distribution.
+
+    Parameters
+    ----------
+    vec : array_like
+        The vector to be normalised.
+    axis : int, optional
+        The axis along which to normalise the vector. Defaults to 0.
+
+    Returns
+    -------
+    normalised_vec : array_like
+        The normalised vector.
+    """
     rv = norm(0, 1)
-    return rv.ppf((np.argsort(np.argsort(vec)) + 0.5) / len(vec))
+    return rv.ppf((np.argsort(np.argsort(vec, axis=axis), axis=axis) + 0.5) / len(vec))
 
 
-def bin_loc(vec, bins):
-    q = np.sort(vec)
-    k = len(q) / bins
-    loc = [int(k * b + 0.5) for b in range(0, bins + 1)]
-    loc[-1] -= 1
+def single_iter(data: Tuple[ArrayLike, ArrayLike, int, int]):
+    """
+    Single iteration of the Gaussian MI calculation for a given mean, covariance, number of samples and number of bins.
+    Useful to estimate bias.
 
-    return q[loc]
+    Parameters
+    ----------
+    data : tuple of (array_like, array_like, int, int)
+        Tuple containing the mean, covariance, number of samples and number of bins.
 
+    Returns
+    -------
+    mi : float
+        The calculated mutual information.
 
-def single_iter(data):
+    """
     means, corre, nsamples, nbins = data
     points = np.random.multivariate_normal(means, corre, nsamples).T.copy()
 
     return pair_mutual_information(points[0], points[1], nbins)
 
 
-def pair_mutual_information(x, y, binNo):
+def pair_mutual_information(x: ArrayLike, y: ArrayLike, binNo: int):
+    """
+    Computes the mutual information between two vectors x and y using a binning estimator.
+
+    Parameters
+    ----------
+    x : array_like
+        The first vector.
+    y : array_like
+        The second vector.
+    binNo : int
+        The number of bins to use for the estimation.
+
+    Returns
+    -------
+    mi : float
+        The computed mutual information.
+
+    Notes
+    -----
+    The mutual information is computed using a binning estimator with no correction for the bias.
+    Use a Corrector for that.
+    The number of bins is set to the given value.
+    """
     assert len(x) == len(y), "x and y must have the same length"
     _nsamples = len(x)
     x = np.require(x, np.float64, "FA")
@@ -55,7 +100,31 @@ def pair_mutual_information(x, y, binNo):
     )
 
 
-def total_mutual_information(data, binNo=None):
+def total_mutual_information(
+    data: Union[np.ndarray, Tuple[np.ndarray, int]], binNo: Union[int, None] = None
+):
+    """
+    Computes the total mutual information of a set of regions using a binning estimator.
+
+    Parameters
+    ----------
+    data : Union[np.ndarray, Tuple[np.ndarray, int]]
+        The data (a 2D array of shape (times, series)) to compute the total mutual information of.
+        If a tuple, the first element is the data and the second element is the number of bins.
+    binNo : Union[int, None], optional
+        The number of bins to use for the estimation. If None, the number of bins is taken from the data.
+
+    Returns
+    -------
+    mi : ndarray
+        The computed total mutual information.
+
+    Notes
+    -----
+    The total mutual information is computed using a binning estimator with no correction for the bias.
+    Use a Corrector for that.
+    The number of bins is set to the given value.
+    """
     if binNo is None:
         data, binNo = data
     data = np.require(data, np.float64, "FA")
@@ -169,9 +238,7 @@ def task_producer(
     random_state: Union[np.random.Generator, int] = None,
 ):
     """Normalise the distribution of data and yields original and shadows"""
-    _session = np.zeros_like(session)
-    for i in range(session.shape[1]):
-        _session[:, i] = normalise(session[:, i])
+    _session = normalise(session)
 
     if multivariate:
         yield _session
@@ -213,7 +280,7 @@ def get_pool(workers, **kwargs):
     if workers == 1:
         pool = a_normal_map()
     else:
-        pool = mp.Pool(workers)
+        pool = mp.Pool(workers, **kwargs)
 
     try:
         yield pool

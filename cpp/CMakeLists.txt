@@ -11,7 +11,7 @@ set_target_properties(pmi PROPERTIES
 # Install it into the Python package _libs folder
 install(
     TARGETS pmi
-    LIBRARY DESTINATION mip2/_libs   # Linux/macOS
-    RUNTIME DESTINATION mip2/_libs   # Windows
-    ARCHIVE DESTINATION mip2/_libs   # static if ever built
+    LIBRARY DESTINATION mienc/_libs   # Linux/macOS
+    RUNTIME DESTINATION mienc/_libs   # Windows
+    ARCHIVE DESTINATION mienc/_libs   # static if ever built
 )
