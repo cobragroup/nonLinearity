@@ -172,14 +172,16 @@ class NonLinearEstimator:
         if self.field_name is None:
             warn("Missing dataset fieldname in .ini file. Trying with heuristics.")
 
-        hc_start = self.config.getint(
-            self.dataset, "healthy_control_start", fallback=None
+        rs_start = self.config.getint(
+            self.dataset, "relevant_sessions_start", fallback=None
         )
-        hc_start = hc_start if hc_start else None
-        hc_end = self.config.getint(self.dataset, "healthy_control_end", fallback=None)
-        hc_end = hc_end if hc_end else None
-        self.hc_slice = slice(hc_start, hc_end)
-        self.first_session = hc_start if hc_start else 0
+        rs_start = rs_start if rs_start else None
+        rs_end = self.config.getint(
+            self.dataset, "relevant_sessions_end", fallback=None
+        )
+        rs_end = rs_end if rs_end else None
+        self.rs_slice = slice(rs_start, rs_end)
+        self.first_session = rs_start if rs_start else 0
 
         self.file_name = os.path.join(file_path, file_name)
         assert os.path.isfile(
@@ -219,7 +221,7 @@ class NonLinearEstimator:
                 ti_start = None
                 ti_end = self.truncate_input
             truncate_slice = slice(ti_start, ti_end)
-            tmp_mat = tmp_mat[truncate_slice, :, self.hc_slice]
+            tmp_mat = tmp_mat[truncate_slice, :, self.rs_slice]
         else:
             self.file_name = None
             tmp_mat = data
