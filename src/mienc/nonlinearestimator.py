@@ -111,7 +111,7 @@ class NonLinearEstimator:
                 "global", "orthogonalise", fallback=False
             )
             self.jitter = self.config.get("global", "jitter", fallback="0.")
-            self.display = self.config.getboolean("global", "display", fallback=True)
+            self.display = self.config.getboolean("global", "display", fallback=False)
             self.workers = self.config.getint("global", "workers", fallback=4)
             self.output_folder = self.config.get(
                 "global", "output_folder", fallback=".."
@@ -434,9 +434,7 @@ class NonLinearEstimator:
                     if self.estimator.EC:
                         true_and_surrogate_MI_shadow[:, :, ns] = tmi
                     else:
-                        true_and_surrogate_MI_shadow[:, ns] = tmi[
-                            np.triu_indices(self.series, 1)
-                        ]
+                        true_and_surrogate_MI_shadow[:, ns] = tmi
 
                 if self.save_out:
                     if self.folder_name == "in_memory":
