@@ -1,0 +1,5 @@
+[run]
+branch = True
+source = mienc
+parallel = True
+concurrency = multiprocessing,thread

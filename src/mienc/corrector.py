@@ -102,7 +102,8 @@ class Corrector:
             self.samples = duration
         if duration != self.samples:
             warn(
-                f"Acquisition duration ({duration}) is different from the set number of samples for correction ({self.samples})."
+                f"Acquisition duration ({duration}) is different from the set number of samples for correction ({self.samples}).",
+                RuntimeWarning,
             )
         self.folder_name = folder_name
 

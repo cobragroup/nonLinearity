@@ -12,7 +12,9 @@ def main():
         description="Mutual Information Estimation for Non-linear Contribution.",
         epilog="COBRA, Giulio Tani Raffaelli, 2023",
     )
-    parser.add_argument("--version", action="version", version="%(prog)s 1.0")
+    parser.add_argument(
+        "--version", action="version", version="%(prog)s" + f"{__version__}"
+    )
     parser.add_argument(
         "-i",
         type=str,

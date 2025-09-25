@@ -91,8 +91,7 @@ class NonLinearEstimator:
             self.surrogates = surrogates
         if workers is not None:
             self.workers = workers
-        if jitter is not None:
-            self.jitter = adjust_jitter(jitter)
+        self.jitter = adjust_jitter(jitter)
 
         assert (
             self.surrogates is not None
@@ -132,10 +131,10 @@ class NonLinearEstimator:
                     os.path.join(path, self.output_folder)
                 )
         except Exception as e:
-            warn("Unable to read config file.\n" + "\n".join(e.args))
+            warn("Unable to read config file.\n" + "\n".join(e.args), RuntimeWarning)
             self.config = None
             self.ortho = None
-            self.jitter = None
+            self.jitter = 0.0
             self.display = None
             self.workers = None
             self.output_folder = None
@@ -170,7 +169,10 @@ class NonLinearEstimator:
 
         self.field_name = self.config.get(self.dataset, "field_name", fallback=None)
         if self.field_name is None:
-            warn("Missing dataset fieldname in .ini file. Trying with heuristics.")
+            warn(
+                "Missing dataset fieldname in .ini file. Trying with heuristics.",
+                RuntimeWarning,
+            )
 
         rs_start = self.config.getint(
             self.dataset, "relevant_sessions_start", fallback=None
