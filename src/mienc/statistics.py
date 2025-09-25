@@ -16,7 +16,6 @@ def statistics(
     pool,
     corrector: Corrector = None,
 ):
-    numPairs, numSurrogatesPU = data.shape
     if isEC:
         numSurrogatesPU = data.shape[-1]
         diff = []

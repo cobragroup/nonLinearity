@@ -9,6 +9,8 @@ from pyparsing import C
 from .bindings import (
     c_binning_pair_mutual_information,
     c_binning_total_mutual_information,
+    c_pair_Chatterjee,
+    c_total_Chatterjee,
     c_correct_vector,
     c_quantile_vector,
 )
@@ -112,6 +114,52 @@ def binning_total_mutual_information(data: np.ndarray, binNo: int):
         out.ctypes.data_as(POINTER(c_double)),
     )
     return out
+
+
+def pair_Chatterjee(x: np.ndarray, y: np.ndarray, distance: bool):
+    assert x.shape[0] == y.shape[0], "x and y must have the same length"
+    if distance:
+        assert len(x.shape) in [1, 2], "x must 1D or 2D array"
+        assert len(y.shape) in [1, 2], "y must 1D or 2D array"
+    else:
+        assert len(x.shape) == 1, "x must be 1D array"
+        assert len(y.shape) == 1, "y must be 1D array"
+    _nsamples = x.shape[0]
+    x = np.require(x, np.float64, "FA")
+    y = np.require(y, np.float64, "FA")
+    d1 = 1 if len(x.shape) == 1 else x.shape[1]
+    d2 = 1 if len(y.shape) == 1 else y.shape[1]
+    return c_pair_Chatterjee(
+        x.ctypes.data_as(POINTER(c_double)),
+        y.ctypes.data_as(POINTER(c_double)),
+        c_int(_nsamples),
+        c_int(d1),
+        c_int(d2),
+        c_bool(distance),
+    )
+
+
+def total_Chatterjee(data: np.ndarray, distance: bool):
+    data = np.require(data, np.float64, "FA")
+    if not distance:
+        assert (
+            len(data.squeeze().shape) == 2
+        ), "Without distance transform, data must be 2D array"
+    if distance and len(data.squeeze().shape) == 3:
+        times, regions, d = data.shape
+    else:
+        times, regions = data.squeeze().shape
+        d = 1
+    out = np.zeros(regions * regions, dtype=np.float64)
+    c_total_Chatterjee(
+        data.ctypes.data_as(POINTER(c_double)),
+        c_int(times),
+        c_int(regions),
+        c_int(d),
+        c_bool(distance),
+        out.ctypes.data_as(POINTER(c_double)),
+    )
+    return out.reshape((regions, regions))
 
 
 def correct_vector(data: np.ndarray, estim: np.ndarray, actual: np.ndarray):

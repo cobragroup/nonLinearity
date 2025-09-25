@@ -57,6 +57,24 @@ _libMI.binning_total_mutual_information.argtypes = (
     POINTER(c_double),
 )
 _libMI.binning_total_mutual_information.restype = None
+_libMI.pair_Chatterjee.argtypes = (
+    POINTER(c_double),
+    POINTER(c_double),
+    c_int,
+    c_int,
+    c_int,
+    c_bool,
+)
+_libMI.pair_Chatterjee.restype = c_double
+_libMI.total_Chatterjee.argtypes = (
+    POINTER(c_double),
+    c_int,
+    c_int,
+    c_int,
+    c_bool,
+    POINTER(c_double),
+)
+_libMI.total_Chatterjee.restype = None
 _libMI.statistics.argtypes = (
     POINTER(c_double),
     c_int,
@@ -89,6 +107,8 @@ _libMI.quantile_vector.restype = None
 
 c_binning_pair_mutual_information = _libMI.binning_pair_mutual_information
 c_binning_total_mutual_information = _libMI.binning_total_mutual_information
+c_pair_Chatterjee = _libMI.pair_Chatterjee
+c_total_Chatterjee = _libMI.total_Chatterjee
 c_statistics = _libMI.statistics
 c_correct_vector = _libMI.correct_vector
 c_quantile_vector = _libMI.quantile_vector

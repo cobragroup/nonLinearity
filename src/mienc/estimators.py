@@ -1,4 +1,9 @@
-from .support import binning_pair_mutual_information, binning_total_mutual_information
+from .support import (
+    binning_pair_mutual_information,
+    binning_total_mutual_information,
+    pair_Chatterjee,
+    total_Chatterjee,
+)
 from typing import Union, Tuple
 from numpy.typing import ArrayLike
 import numpy as np
@@ -8,7 +13,6 @@ class GenericEstimator:
     name = ""
 
     def __init__(self):
-        self._EC = 0
         self._parameter = 0
 
     def single_iter(self, data: Tuple[ArrayLike, ArrayLike, int]):
@@ -49,6 +53,7 @@ class GenericEstimator:
 
     @EC.setter
     def EC(self, value: int):
+        assert value >= 0
         self._EC = value
 
     @property
@@ -90,6 +95,10 @@ class BinEstimator(GenericEstimator):
     def EC(self, value):
         pass
 
+    @property
+    def delay(self):
+        return 0
+
 
 class KNNEstimator(GenericEstimator):
     name = "knn"
@@ -99,7 +108,7 @@ class KNNEstimator(GenericEstimator):
             from tigramite.independence_tests.cmiknn import CMIknn
 
             self.CMIknn = CMIknn
-            self._EC = effective_connectivity
+            self.EC = effective_connectivity
             GenericEstimator.__init__(self)
         except ImportError as e:
             print(e)
@@ -156,20 +165,91 @@ class KNNEstimator(GenericEstimator):
             self._parameter = 1
 
 
+class ChatterjeEstimator(GenericEstimator):
+    name = "chatt"
+
+    def __init__(self, effective_connectivity: int = 0):
+        self.EC = effective_connectivity
+        GenericEstimator.__init__(self)
+
+    def pair_mutual_information(self, x: np.ndarray, y: np.ndarray):
+        return max(pair_Chatterjee(x, y, False), pair_Chatterjee(y, x, False))
+
+    def total_mutual_information(self, data: np.ndarray):
+        res = total_Chatterjee(data, False)
+        return (
+            res
+            if self.EC
+            else np.max(np.stack([res, res.T], axis=-1), axis=-1)[
+                np.triu_indices(data.shape[1], 1)
+            ]
+        )
+
+    def get_suffix(self) -> str:
+        return f"_{f'EC' if self.EC else ''}_chatt"
+
+    def infer_parameter(self, duration: int):
+        pass
+
+    @property
+    def EC(self):
+        return bool(self._EC)
+
+    @EC.setter
+    def EC(self, value: int):
+        assert value in [0, 1], "EC must be 0 or 1 for Chatterje correlation estimator"
+        self._EC = value
+
+
+class dChatterjeEstimator(GenericEstimator):
+    name = "dchatt"
+
+    def __init__(self, effective_connectivity: int = 0):
+        self.EC = effective_connectivity
+        GenericEstimator.__init__(self)
+
+    def pair_mutual_information(self, x: np.ndarray, y: np.ndarray):
+        return max(pair_Chatterjee(x, y, True), pair_Chatterjee(y, x, True))
+
+    def total_mutual_information(self, data: np.ndarray):
+        input = np.stack(
+            [data[: -self.delay, :], data[self.delay :, :]],
+            axis=-1,
+        )
+        return total_Chatterjee(input, True)
+
+    def get_suffix(self) -> str:
+        return f"_EC{self.delay}_dchatt"
+
+    def infer_parameter(self, duration: int):
+        pass
+
+    @property
+    def EC(self):
+        return bool(self._EC)
+
+    @EC.setter
+    def EC(self, value: int):
+        assert value >= 1, "EC must be >=1 for Chatterje distance estimator"
+        self._EC = value
+
+
 def get_estimator(estimator_name: str, effective_connectivity: int) -> GenericEstimator:
     if estimator_name.lower() in ["bin", "binning", "binning_estimator"]:
         return BinEstimator()
     elif estimator_name.lower() in ["knn", "knn_estimator"]:
         return KNNEstimator(effective_connectivity)
     elif estimator_name.lower() in [
+        "chatt",
         "chatterje",
         "chatterje_correlation",
     ]:
-        return GenericEstimator()
+        return ChatterjeEstimator(effective_connectivity)
     elif estimator_name.lower() in [
+        "dchatt",
         "dchatterje",
         "chatterje_distance",
     ]:
-        return GenericEstimator()
+        return dChatterjeEstimator(effective_connectivity)
     else:
         raise ValueError(f"Invalid estimator name: {estimator_name}")
