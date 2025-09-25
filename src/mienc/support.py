@@ -4,14 +4,16 @@ import warnings
 from contextlib import contextmanager
 from ctypes import POINTER, c_double, c_int, c_bool
 from typing import Union, Tuple
+
+from pyparsing import C
 from .bindings import (
-    c_pair_mutual_information,
-    c_total_mutual_information,
-    c_statistics,
+    c_binning_pair_mutual_information,
+    c_binning_total_mutual_information,
+    c_pair_Chatterjee,
+    c_total_Chatterjee,
     c_correct_vector,
     c_quantile_vector,
 )
-
 import numpy as np
 from numpy.typing import ArrayLike
 from scipy.stats import norm
@@ -41,29 +43,7 @@ def normalise(vec, axis=0):
     return rv.ppf((np.argsort(np.argsort(vec, axis=axis), axis=axis) + 0.5) / len(vec))
 
 
-def single_iter(data: Tuple[ArrayLike, ArrayLike, int, int]):
-    """
-    Single iteration of the Gaussian MI calculation for a given mean, covariance, number of samples and number of bins.
-    Useful to estimate bias.
-
-    Parameters
-    ----------
-    data : tuple of (array_like, array_like, int, int)
-        Tuple containing the mean, covariance, number of samples and number of bins.
-
-    Returns
-    -------
-    mi : float
-        The calculated mutual information.
-
-    """
-    means, corre, nsamples, nbins = data
-    points = np.random.multivariate_normal(means, corre, nsamples).T.copy()
-
-    return pair_mutual_information(points[0], points[1], nbins)
-
-
-def pair_mutual_information(x: ArrayLike, y: ArrayLike, binNo: int):
+def binning_pair_mutual_information(x: ArrayLike, y: ArrayLike, binNo: int):
     """
     Computes the mutual information between two vectors x and y using a binning estimator.
 
@@ -92,7 +72,7 @@ def pair_mutual_information(x: ArrayLike, y: ArrayLike, binNo: int):
     x = np.require(x, np.float64, "FA")
     y = np.require(y, np.float64, "FA")
 
-    return c_pair_mutual_information(
+    return c_binning_pair_mutual_information(
         x.ctypes.data_as(POINTER(c_double)),
         y.ctypes.data_as(POINTER(c_double)),
         c_int(_nsamples),
@@ -100,9 +80,7 @@ def pair_mutual_information(x: ArrayLike, y: ArrayLike, binNo: int):
     )
 
 
-def total_mutual_information(
-    data: Union[np.ndarray, Tuple[np.ndarray, int]], binNo: Union[int, None] = None
-):
+def binning_total_mutual_information(data: np.ndarray, binNo: int):
     """
     Computes the total mutual information of a set of regions using a binning estimator.
 
@@ -110,9 +88,8 @@ def total_mutual_information(
     ----------
     data : Union[np.ndarray, Tuple[np.ndarray, int]]
         The data (a 2D array of shape (times, series)) to compute the total mutual information of.
-        If a tuple, the first element is the data and the second element is the number of bins.
     binNo : Union[int, None], optional
-        The number of bins to use for the estimation. If None, the number of bins is taken from the data.
+        The number of bins to use for the estimation.
 
     Returns
     -------
@@ -125,13 +102,11 @@ def total_mutual_information(
     Use a Corrector for that.
     The number of bins is set to the given value.
     """
-    if binNo is None:
-        data, binNo = data
     data = np.require(data, np.float64, "FA")
     times, regions = data.shape
     totPairs = int(regions * (regions - 1) / 2)
     out = np.zeros(totPairs, dtype=np.float64)
-    c_total_mutual_information(
+    c_binning_total_mutual_information(
         data.ctypes.data_as(POINTER(c_double)),
         c_int(times),
         c_int(regions),
@@ -139,6 +114,52 @@ def total_mutual_information(
         out.ctypes.data_as(POINTER(c_double)),
     )
     return out
+
+
+def pair_Chatterjee(x: np.ndarray, y: np.ndarray, distance: bool):
+    assert x.shape[0] == y.shape[0], "x and y must have the same length"
+    if distance:
+        assert len(x.shape) in [1, 2], "x must 1D or 2D array"
+        assert len(y.shape) in [1, 2], "y must 1D or 2D array"
+    else:
+        assert len(x.shape) == 1, "x must be 1D array"
+        assert len(y.shape) == 1, "y must be 1D array"
+    _nsamples = x.shape[0]
+    x = np.require(x, np.float64, "FA")
+    y = np.require(y, np.float64, "FA")
+    d1 = 1 if len(x.shape) == 1 else x.shape[1]
+    d2 = 1 if len(y.shape) == 1 else y.shape[1]
+    return c_pair_Chatterjee(
+        x.ctypes.data_as(POINTER(c_double)),
+        y.ctypes.data_as(POINTER(c_double)),
+        c_int(_nsamples),
+        c_int(d1),
+        c_int(d2),
+        c_bool(distance),
+    )
+
+
+def total_Chatterjee(data: np.ndarray, distance: bool):
+    data = np.require(data, np.float64, "FA")
+    if not distance:
+        assert (
+            len(data.squeeze().shape) == 2
+        ), "Without distance transform, data must be 2D array"
+    if distance and len(data.squeeze().shape) == 3:
+        times, regions, d = data.shape
+    else:
+        times, regions = data.squeeze().shape
+        d = 1
+    out = np.zeros(regions * regions, dtype=np.float64)
+    c_total_Chatterjee(
+        data.ctypes.data_as(POINTER(c_double)),
+        c_int(times),
+        c_int(regions),
+        c_int(d),
+        c_bool(distance),
+        out.ctypes.data_as(POINTER(c_double)),
+    )
+    return out.reshape((regions, regions))
 
 
 def correct_vector(data: np.ndarray, estim: np.ndarray, actual: np.ndarray):
@@ -155,28 +176,6 @@ def correct_vector(data: np.ndarray, estim: np.ndarray, actual: np.ndarray):
         out.ctypes.data_as(POINTER(c_double)),
     )
     return out
-
-
-def statistics(
-    data: np.ndarray,
-    estim: np.ndarray,
-    actual: np.ndarray,
-    numThreads: int,
-    extended_stats: bool,
-):
-    numPairs, numSurrogatesPU = data.shape
-    bins = len(estim)
-    tmp = c_statistics(
-        data.ctypes.data_as(POINTER(c_double)),
-        c_int(numPairs),
-        c_int(numSurrogatesPU - 1),
-        estim.ctypes.data_as(POINTER(c_double)),
-        actual.ctypes.data_as(POINTER(c_double)),
-        c_int(bins),
-        c_int(numThreads),
-        c_bool(extended_stats),
-    )
-    return {f[0]: getattr(tmp, f[0]) for f in tmp._fields_}
 
 
 def quantile_vector(data: np.ndarray, quantile: Union[float, np.ndarray]):

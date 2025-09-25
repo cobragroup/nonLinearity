@@ -10,13 +10,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
 
-from .support import correct_vector, get_pool, single_iter
+from .support import correct_vector, get_pool
+from .estimators import GenericEstimator
 
 
 class Corrector:
     def __init__(
         self,
-        bins: int,
+        estimator: GenericEstimator,
         duration: int,
         steps: int = None,
         iterations: int = None,
@@ -35,10 +36,16 @@ class Corrector:
         self.old_correct = np.vectorize(self._correct)
         if no_correction:
             self.no_correction = True
+            self.steps = 0
             return
         self.no_correction = False
 
-        self.bins = bins
+        self.estimator = estimator
+        if self.estimator.name == "knn":
+            print(
+                "Computing correction for KNN estimator is very slow and often unnecessary.\n"
+                "Consider calling the NonLinearEstimator.estimate with `no_correction=True`\n"
+            )
         self.verbose = verbose
 
         if config is not None:
@@ -106,9 +113,16 @@ class Corrector:
         self.correction = None
         self.true_value = None
 
-        self.out_file = f"correction_{self.samples}_{self.bins}.npy"
+        self.out_file = f"correction_{self.samples}_{self.estimator.name}_{self.estimator.parameter}.npy"
 
         self.__retrieve(retrieve)
+        assert (
+            self.steps is not None
+        ), "The number of quantization steps of the correction has to be specified in the config file or in the call to Corrector."
+
+        assert (
+            self.iterations is not None
+        ), "The number of iterations in the sampling of Gaussian distributions for the correction has to be specified in the config file or in the call to Corrector."
 
     def __retrieve(self, retrieve):
         self.earlyResultsPath = None
@@ -130,7 +144,9 @@ class Corrector:
 
         for fold in glob.glob(
             os.path.abspath(
-                os.path.join(self.folder_name, os.pardir, f"*bin{self.bins}")
+                os.path.join(
+                    self.folder_name, os.pardir, f"*{self.estimator.get_suffix()}"
+                )
             )
         ):
             if os.path.isfile(os.path.join(fold, "shape.json")):
@@ -157,16 +173,16 @@ class Corrector:
         if self.earlyResultsPath is None:
             if self.verbose:
                 print(
-                    f"Computing correction for {self.samples} samples and {self.bins} bins."
+                    f"Computing correction for estimator {self.estimator.name} with {self.samples} samples and parameter {self.estimator.parameter}."
                 )
             with get_pool(self.workers) as pool:
                 for i in tqdm(range(self.steps), desc="Step", disable=not self.verbose):
                     means = 0, 0
                     correlation_matrix = [[1, i * increment], [i * increment, 1]]
                     I = pool.map(
-                        single_iter,
+                        self.estimator.single_iter,
                         (
-                            (means, correlation_matrix, self.samples, self.bins)
+                            (means, correlation_matrix, self.samples)
                             for __ in range(self.iterations)
                         ),
                     )
@@ -207,7 +223,7 @@ class Corrector:
                         plt.legend()
                         if self.folder_name:
                             plt.savefig(
-                                f"{self.folder_name}/monotonisationMap_{self.bins}.pdf",
+                                f"{self.folder_name}/monotonisationMap_{self.estimator.name}_{self.estimator.parameter}.pdf",
                                 bbox_inches="tight",
                             )
                         if self.display:
@@ -221,7 +237,7 @@ class Corrector:
         else:
             if self.verbose:
                 print(
-                    f"Loading correction for {self.samples} samples and {self.bins} bins."
+                    f"Loading correction for estimator {self.estimator.name} with {self.samples} samples and parameter {self.estimator.parameter}."
                 )
             self.correction = np.load(self.earlyResultsPath)
             correction = self.correction
@@ -267,11 +283,11 @@ class Corrector:
                 self.folder_name
                 and self.folder_name != "in_memory"
                 and not os.path.isfile(
-                    f"{self.folder_name}/correctionMap_{self.bins}.pdf"
+                    f"{self.folder_name}/correctionMap_{self.estimator.name}_{self.estimator.parameter}.pdf"
                 )
             ):
                 plt.savefig(
-                    f"{self.folder_name}/correctionMap_{self.bins}.pdf",
+                    f"{self.folder_name}/correctionMap_{self.estimator.name}_{self.estimator.parameter}.pdf",
                     bbox_inches="tight",
                 )
             if self.display:

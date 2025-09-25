@@ -60,3 +60,7 @@ rep = [
     "nilearn",
     "mne",
 ]
+alt = [
+    "tigramite",
+    "numba",
+]
