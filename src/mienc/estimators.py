@@ -79,13 +79,13 @@ class BinEstimator(GenericEstimator):
         return binning_total_mutual_information(data, self.parameter)
 
     def get_suffix(self) -> str:
-        return f"_{self.parameter}bins"
+        return f"{self.parameter}bins"
 
     def infer_parameter(self, duration: int):
         if self._parameter == 0:
-            self._parameter = int(np.power(duration, 1 / 3))
+            self._parameter = max(2, int(np.power(duration, 1 / 3)))
         elif self._parameter < 1:
-            self._parameter *= duration
+            self._parameter = max(2, int(duration * self._parameter))
 
     @property
     def EC(self):
@@ -158,7 +158,7 @@ class KNNEstimator(GenericEstimator):
         return out if self.EC else out[np.triu_indices(data.shape[1], 1)]
 
     def get_suffix(self) -> str:
-        return f"_{f'EC{self.delay}' if self.EC else ''}_{self.parameter}nn"
+        return f"{f'EC{self.delay}' if self.EC else ''}_{self.parameter}nn"
 
     def infer_parameter(self, duration: int):
         if self._parameter == 0:
@@ -186,7 +186,7 @@ class ChatterjeEstimator(GenericEstimator):
         )
 
     def get_suffix(self) -> str:
-        return f"_{f'EC' if self.EC else ''}_chatt"
+        return f"{f'EC' if self.EC else ''}_chatt"
 
     def infer_parameter(self, duration: int):
         pass
@@ -219,7 +219,7 @@ class dChatterjeEstimator(GenericEstimator):
         return total_Chatterjee(input, True)
 
     def get_suffix(self) -> str:
-        return f"_EC{self.delay}_dchatt"
+        return f"EC{self.delay}_dchatt"
 
     def infer_parameter(self, duration: int):
         pass
@@ -230,7 +230,7 @@ class dChatterjeEstimator(GenericEstimator):
 
     @EC.setter
     def EC(self, value: int):
-        assert value >= 1, "EC must be >=1 for Chatterje distance estimator"
+        assert value >= 1, "EC must be >=1 for Chatterjee distance estimator"
         self._EC = value
 
 
@@ -241,14 +241,14 @@ def get_estimator(estimator_name: str, effective_connectivity: int) -> GenericEs
         return KNNEstimator(effective_connectivity)
     elif estimator_name.lower() in [
         "chatt",
-        "chatterje",
-        "chatterje_correlation",
+        "chatterjee",
+        "chatterjee_correlation",
     ]:
         return ChatterjeEstimator(effective_connectivity)
     elif estimator_name.lower() in [
         "dchatt",
-        "dchatterje",
-        "chatterje_distance",
+        "dchatterjee",
+        "chatterjee_distance",
     ]:
         return dChatterjeEstimator(effective_connectivity)
     else:

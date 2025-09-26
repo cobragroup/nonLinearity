@@ -50,10 +50,15 @@ class Corrector:
 
         if config is not None:
             if isinstance(config, str):
+                found = []
                 try:
                     self.config = configparser.ConfigParser()
-                    self.config.read(config)
+                    found = self.config.read(config)
                 except:
+                    self.config = None
+                    found = []
+                if found == []:
+                    warn("Unable to read config file.\n", RuntimeWarning)
                     self.config = None
             elif isinstance(config, configparser.ConfigParser):
                 self.config = config
@@ -102,7 +107,8 @@ class Corrector:
             self.samples = duration
         if duration != self.samples:
             warn(
-                f"Acquisition duration ({duration}) is different from the set number of samples for correction ({self.samples})."
+                f"Acquisition duration ({duration}) is different from the set number of samples for correction ({self.samples}).",
+                RuntimeWarning,
             )
         self.folder_name = folder_name
 

@@ -9,6 +9,7 @@ import socket
 from multiprocessing.pool import Pool as pool_type
 from typing import Literal, Union
 from warnings import warn
+import tempfile, atexit, shutil
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -18,7 +19,6 @@ from sklearn.cluster import estimate_bandwidth
 from tqdm import tqdm
 
 from .corrector import Corrector
-from .innovationOrthogonalization import innOr
 from .support import (
     a_normal_map,
     adjust_jitter,
@@ -79,7 +79,11 @@ class NonLinearEstimator:
         if self.estimator.EC:
             self.statsNames = ["mean", "std"]
         self.__read_config(config_file)
-
+        if self.output_folder is None:
+            self.output_folder = tempfile.mkdtemp()
+            atexit.register(
+                lambda: shutil.rmtree(self.output_folder, ignore_errors=True)
+            )
         self.random_state = np.random.default_rng(random_state)
 
         if ortho is not None:
@@ -91,8 +95,7 @@ class NonLinearEstimator:
             self.surrogates = surrogates
         if workers is not None:
             self.workers = workers
-        if jitter is not None:
-            self.jitter = adjust_jitter(jitter)
+        self.jitter = adjust_jitter(jitter)
 
         assert (
             self.surrogates is not None
@@ -101,45 +104,54 @@ class NonLinearEstimator:
             self.workers = 1
 
     def __read_config(self, config_file):
-        if config_file is None:
-            config_file = os.path.join(path, "config.ini")
-        try:
-            self.config = configparser.ConfigParser()
-            self.config.read(config_file)
+        if config_file is not None:
+            try:
+                self.config = configparser.ConfigParser()
+                found = self.config.read(config_file)
+                assert len(found) > 0
 
-            self.ortho = self.config.getboolean(
-                "global", "orthogonalise", fallback=False
-            )
-            self.jitter = self.config.get("global", "jitter", fallback="0.")
-            self.display = self.config.getboolean("global", "display", fallback=False)
-            self.workers = self.config.getint("global", "workers", fallback=4)
-            self.output_folder = self.config.get(
-                "global", "output_folder", fallback=".."
-            )
-            self.estimator.parameter = self.config.getint("global", "bins", fallback=8)
-            self.surrogates = self.config.getint("global", "surrogates", fallback=99)
-
-            thisHost = socket.gethostname()
-            if self.config.has_section(thisHost):
-                self.workers = self.config.getint(
-                    thisHost, "workers", fallback=self.workers
+                self.ortho = self.config.getboolean(
+                    "global", "orthogonalise", fallback=False
                 )
+                self.jitter = self.config.get("global", "jitter", fallback="0.")
+                self.display = self.config.getboolean(
+                    "global", "display", fallback=False
+                )
+                self.workers = self.config.getint("global", "workers", fallback=4)
                 self.output_folder = self.config.get(
-                    thisHost, "output_folder", fallback=self.output_folder
+                    "global", "output_folder", fallback=None
                 )
-            if not os.path.isabs(self.output_folder):
-                self.output_folder = os.path.abspath(
-                    os.path.join(path, self.output_folder)
+                self.estimator.parameter = self.config.getint(
+                    "global", "bins", fallback=8
                 )
-        except Exception as e:
-            warn("Unable to read config file.\n" + "\n".join(e.args))
-            self.config = None
-            self.ortho = None
-            self.jitter = None
-            self.display = None
-            self.workers = None
-            self.output_folder = None
-            self.estimator.parameter = None
+                self.surrogates = self.config.getint(
+                    "global", "surrogates", fallback=99
+                )
+
+                thisHost = socket.gethostname()
+                if self.config.has_section(thisHost):
+                    self.workers = self.config.getint(
+                        thisHost, "workers", fallback=self.workers
+                    )
+                    self.output_folder = self.config.get(
+                        thisHost, "output_folder", fallback=self.output_folder
+                    )
+                if not os.path.isabs(self.output_folder):
+                    self.output_folder = os.path.abspath(
+                        os.path.join(path, self.output_folder)
+                    )
+                return
+            except Exception as e:
+                warn(
+                    "Unable to read config file.\n" + "\n".join(e.args), RuntimeWarning
+                )
+        self.config = None
+        self.ortho = None
+        self.jitter = 0.0
+        self.display = None
+        self.workers = None
+        self.output_folder = None
+        self.estimator.parameter = None
 
     def __read_config_dataset(
         self, dataset_sub=None, truncate_input=None, dataset=None, **kwargs
@@ -170,16 +182,21 @@ class NonLinearEstimator:
 
         self.field_name = self.config.get(self.dataset, "field_name", fallback=None)
         if self.field_name is None:
-            warn("Missing dataset fieldname in .ini file. Trying with heuristics.")
+            warn(
+                "Missing dataset fieldname in .ini file. Trying with heuristics.",
+                RuntimeWarning,
+            )
 
-        hc_start = self.config.getint(
-            self.dataset, "healthy_control_start", fallback=None
+        rs_start = self.config.getint(
+            self.dataset, "relevant_sessions_start", fallback=None
         )
-        hc_start = hc_start if hc_start else None
-        hc_end = self.config.getint(self.dataset, "healthy_control_end", fallback=None)
-        hc_end = hc_end if hc_end else None
-        self.hc_slice = slice(hc_start, hc_end)
-        self.first_session = hc_start if hc_start else 0
+        rs_start = rs_start if rs_start else None
+        rs_end = self.config.getint(
+            self.dataset, "relevant_sessions_end", fallback=None
+        )
+        rs_end = rs_end if rs_end else None
+        self.rs_slice = slice(rs_start, rs_end)
+        self.first_session = rs_start if rs_start else 0
 
         self.file_name = os.path.join(file_path, file_name)
         assert os.path.isfile(
@@ -219,7 +236,7 @@ class NonLinearEstimator:
                 ti_start = None
                 ti_end = self.truncate_input
             truncate_slice = slice(ti_start, ti_end)
-            tmp_mat = tmp_mat[truncate_slice, :, self.hc_slice]
+            tmp_mat = tmp_mat[truncate_slice, :, self.rs_slice]
         else:
             self.file_name = None
             tmp_mat = data
@@ -235,6 +252,8 @@ class NonLinearEstimator:
                 )
 
         if self.ortho:
+            from .innovationOrthogonalization import innOr
+
             try:
                 self.mat = innOr(tmp_mat, **kwargs)
             except np.linalg.LinAlgError as e:
@@ -673,19 +692,11 @@ class NonLinearEstimator:
                 self.surrogates - 1
             )
             pair_gauss_mi = np.mean(corrected_statsMI[:, 1:], 1)
-            try:
-                percentile01_PLOT, percentile99_PLOT = np.quantile(
-                    corrected_statsMI[:, 1:],
-                    [corrected_percentile01pointer, corrected_percentile99pointer],
-                    1,
-                )
-            except:
-                print(
-                    corrected_percentile01pointer,
-                    corrected_percentile99pointer,
-                    self.surrogates,
-                )
-                raise
+            percentile01_PLOT, percentile99_PLOT = np.quantile(
+                corrected_statsMI[:, 1:],
+                [corrected_percentile01pointer, corrected_percentile99pointer],
+                1,
+            )
             plt.plot(correlation[new_order], pair_gauss_mi[new_order], "r")
             plt.plot(correlation[new_order], percentile01_PLOT[new_order], "lightblue")
             plt.plot(correlation[new_order], percentile99_PLOT[new_order], "g")

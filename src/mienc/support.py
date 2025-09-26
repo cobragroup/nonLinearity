@@ -178,24 +178,6 @@ def correct_vector(data: np.ndarray, estim: np.ndarray, actual: np.ndarray):
     return out
 
 
-def quantile_vector(data: np.ndarray, quantile: Union[float, np.ndarray]):
-    if not isinstance(quantile, np.ndarray):
-        if not hasattr(quantile, "__len__"):
-            quantile = [quantile]
-        quantile = np.array(quantile)
-    numPairs, numSurrogatesPU = data.shape
-    out = np.zeros((numPairs, len(quantile)))
-    c_quantile_vector(
-        data.ctypes.data_as(POINTER(c_double)),
-        c_int(numPairs),
-        c_int(numSurrogatesPU - 1),
-        quantile.ctypes.data_as(POINTER(c_double)),
-        c_int(len(quantile)),
-        out.ctypes.data_as(POINTER(c_double)),
-    )
-    return out
-
-
 def surrogate(
     x: np.ndarray,
     multivariate: bool = True,
@@ -255,8 +237,12 @@ def adjust_jitter(jitter):
         if jitter:
             jitter = 1e-3
     else:
-        if np.isclose(jitter, 0):
+        if jitter is None or np.isclose(jitter, 0):
             jitter = False
+        else:
+            raise ValueError(
+                "Jitter must be a (string that converts to a) bool or a float"
+            )
     return jitter
 
 
@@ -272,6 +258,10 @@ class a_normal_map:
 
     def close(self, *args):
         pass
+
+    @property
+    def _processes(self):
+        return 1
 
 
 @contextmanager

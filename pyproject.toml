@@ -39,6 +39,13 @@ mienc = "mienc:main"
 [tool.scikit-build]
 wheel.packages = ["src/mienc"]
 
+[tool.scikit-build.sdist]
+include = [
+  "tests/**",          # include tests and data
+  "pyproject.toml",
+  "CMakeLists.txt",
+]
+
 [tool.versioningit]
 default-version = {attr = "mienc._version.__version__"} 
 default-version-srcdir = "src"
@@ -63,4 +70,5 @@ rep = [
 alt = [
     "tigramite",
     "numba",
+    "statsmodels",
 ]
