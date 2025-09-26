@@ -70,4 +70,5 @@ rep = [
 alt = [
     "tigramite",
     "numba",
+    "statsmodels",
 ]

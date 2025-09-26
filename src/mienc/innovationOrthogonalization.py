@@ -16,13 +16,15 @@ try:
     __loaded = True
 except ModuleNotFoundError:
     warnings.warn(
-        "'statsmodels' module missing, impossible to fit the VAR, 'innor' won't work."
+        "'statsmodels' module missing, impossible to fit the VAR, 'innor' won't work.",
+        RuntimeWarning,
     )
     __loaded = False
 except ImportError as e:
     warnings.warn(
         "'statsmodels' failed to load, impossible to fit the VAR, 'innor' won't work.\n"
-        + e.msg
+        + e.msg,
+        RuntimeWarning,
     )
     __loaded = False
 
@@ -58,7 +60,8 @@ def innOr(
     """
     if not __loaded:
         warnings.warn(
-            "'statsmodels' module missing, impossible to fit the VAR, returning original input."
+            "'statsmodels' module missing, impossible to fit the VAR, returning original input.",
+            RuntimeWarning,
         )
         return Y
     if len(Y.shape) > 2:

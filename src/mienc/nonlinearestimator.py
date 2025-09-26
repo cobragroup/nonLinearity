@@ -18,7 +18,6 @@ from sklearn.cluster import estimate_bandwidth
 from tqdm import tqdm
 
 from .corrector import Corrector
-from .innovationOrthogonalization import innOr
 from .support import (
     a_normal_map,
     adjust_jitter,
@@ -239,6 +238,8 @@ class NonLinearEstimator:
                 )
 
         if self.ortho:
+            from .innovationOrthogonalization import innOr
+
             try:
                 self.mat = innOr(tmp_mat, **kwargs)
             except np.linalg.LinAlgError as e:

@@ -1,7 +1,9 @@
 from pathlib import Path
 import re
 from tkinter import N
-import mienc
+import importlib
+
+mienc = importlib.import_module("mienc")
 import mienc.estimators
 import pytest
 import configparser, os, socket, sys, subprocess
@@ -89,7 +91,7 @@ def test_bin_fractionalParameter(config_file, cache_dir):
         parameter=0.1,
         surrogates=1,
         cache=cache_dir,
-        save_out=True,
+        save_out=3,
         dataset="testing",
         verbose=True,
         EC=0,
@@ -97,6 +99,21 @@ def test_bin_fractionalParameter(config_file, cache_dir):
     )
     nle.estimate(
         display=False, dataset_sub="A", extended_stats=True, compute_shadow=True
+    )
+    nle2 = mienc.NonLinearEstimator(
+        config_file=config_file,
+        estimator="bin",
+        parameter=2,
+        surrogates=1,
+        cache=cache_dir,
+        save_out=True,
+        dataset="testing",
+        verbose=True,
+        EC=0,
+        random_state=42,
+    )
+    nle2.estimate(
+        display=False, dataset_sub="A", extended_stats=True, compute_shadow=False
     )
     assert os.path.isfile(os.path.join(nle.folder_name, "session01_2_sha.npy"))
 
@@ -130,8 +147,9 @@ def test_knn_ortho(config_file, cache_dir, results_dir):
             extended_stats=True,
             compute_shadow="extend",
             no_correction=True,
+            save_out=False,
         )
-    assert os.path.isfile(os.path.join(nle.folder_name, "shape.json"))
+    assert nle.folder_name is None
 
 
 def test_Chatterjee_suffix(config_file, cache_dir):
@@ -184,6 +202,7 @@ def test_Chatterjee_Nones(config_file, cache_dir):
         no_correction=True,
         truncate_input=[20],
         ortho=False,
+        suffix="try",
     )
     assert os.path.isfile(os.path.join(nle.folder_name, "shape.json"))
 
@@ -338,7 +357,7 @@ def test_Corrector_Nones(cache_dir):
         ensure_monotonic=False,
         config=None,
         cache_dir=None,
-        verbose=True,
+        verbose=False,
         iterations=10,
     )
     corrector.compute_correction()
