@@ -13,3 +13,4 @@ dummy*
 *npy
 *mat
 *pkl
+.coverage
