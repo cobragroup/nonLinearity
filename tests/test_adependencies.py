@@ -49,6 +49,7 @@ def no_statsmodels(monkeypatch):
         monkeypatch.setitem(sys.modules, mod, None)
 
     yield
+
     sys.modules.clear()
     sys.modules.update(original_modules)
 
@@ -70,7 +71,7 @@ def test_bin_FailOrtho(config_file, cache_dir, no_statsmodels):
         random_state=42,
         ortho=True,
     )
-    with pytest.warns(RuntimeWarning, match="missing"):
+    with pytest.warns(RuntimeWarning, match="statsmodels"):
         nle.estimate(
             display=False,
             dataset_sub="A",

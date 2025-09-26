@@ -88,6 +88,26 @@ def test_NLE_jitter_singleSeries():
         )
 
 
+def test_NLE_orthoFail():
+    nle = mienc.NonLinearEstimator(
+        estimator="bin",
+        parameter=0,
+        surrogates=1,
+        save_out="in_memory",
+        verbose=False,
+        retrieve=False,
+        ortho=True,
+        EC=0,
+    )
+    with pytest.raises(RuntimeError):
+        res = nle.estimate(
+            np.ones([27, 10, 2]),
+            no_correction=True,
+            extended_stats=True,
+            compute_shadow=False,
+        )
+
+
 def test_NLE_jitter_normalMap():
     nle = mienc.NonLinearEstimator(
         estimator="bin",

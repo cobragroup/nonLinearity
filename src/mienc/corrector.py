@@ -50,10 +50,15 @@ class Corrector:
 
         if config is not None:
             if isinstance(config, str):
+                found = []
                 try:
                     self.config = configparser.ConfigParser()
-                    self.config.read(config)
+                    found = self.config.read(config)
                 except:
+                    self.config = None
+                    found = []
+                if found == []:
+                    warn("Unable to read config file.\n", RuntimeWarning)
                     self.config = None
             elif isinstance(config, configparser.ConfigParser):
                 self.config = config

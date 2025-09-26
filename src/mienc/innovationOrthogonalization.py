@@ -14,12 +14,6 @@ try:
     from statsmodels.tsa.api import VAR
 
     __loaded = True
-except ModuleNotFoundError:
-    warnings.warn(
-        "'statsmodels' module missing, impossible to fit the VAR, 'innor' won't work.",
-        RuntimeWarning,
-    )
-    __loaded = False
 except ImportError as e:
     warnings.warn(
         "'statsmodels' failed to load, impossible to fit the VAR, 'innor' won't work.\n"

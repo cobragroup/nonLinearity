@@ -84,6 +84,22 @@ def test_bin_complete(config_file, cache_dir):
     assert os.path.isfile(os.path.join(nle.folder_name, "session01_3.npy"))
 
 
+def test_bin_BadConfig(cache_dir):
+    with pytest.warns(RuntimeWarning, match="Unable"):
+        nle = mienc.NonLinearEstimator(
+            config_file="qwertyuiop",
+            estimator="bin",
+            parameter=0,
+            surrogates=51,
+            cache=cache_dir,
+            save_out=True,
+            dataset="testing",
+            verbose=True,
+            EC=0,
+            random_state=42,
+        )
+
+
 def test_bin_fractionalParameter(config_file, cache_dir):
     nle = mienc.NonLinearEstimator(
         config_file=config_file,
@@ -118,6 +134,31 @@ def test_bin_fractionalParameter(config_file, cache_dir):
     assert os.path.isfile(os.path.join(nle.folder_name, "session01_2_sha.npy"))
 
 
+def test_bin_missingHost(config_file, cache_dir, results_dir):
+    config = configparser.ConfigParser()
+    config.read(config_file)
+    this_host = socket.gethostname()
+    config.remove_section(this_host)
+    config.set("global", "output_folder", os.path.relpath(results_dir, mienc.__file__))
+    config.write(open(results_dir / "config2.ini", "w"))
+
+    nle = mienc.NonLinearEstimator(
+        config_file=str(results_dir / "config2.ini"),
+        estimator="bin",
+        parameter=0,
+        surrogates=2,
+        cache=cache_dir,
+        save_out=3,
+        dataset="testing",
+        verbose=True,
+        EC=0,
+        random_state=42,
+    )
+    assert nle.output_folder == str(
+        results_dir
+    ), f"output_folder {nle.output_folder} not {results_dir}"
+
+
 def test_knn_ortho(config_file, cache_dir, results_dir):
     pytest.importorskip("tigramite")
     pytest.importorskip("numba")
@@ -139,11 +180,11 @@ def test_knn_ortho(config_file, cache_dir, results_dir):
         random_state=42,
         ortho=True,
         truncate_input=[5, 20],
+        dataset_sub="A",
     )
     with pytest.warns(RuntimeWarning, match="heuristics"):
         nle.estimate(
             display=False,
-            dataset_sub="A",
             extended_stats=True,
             compute_shadow="extend",
             no_correction=True,
@@ -216,7 +257,7 @@ def test_Chatterjee_wrongTruncate(config_file, cache_dir):
         cache=cache_dir,
         save_out=True,
         dataset="testing",
-        verbose=True,
+        verbose=False,
         EC=0,
         random_state=42,
         ortho=True,
@@ -361,7 +402,25 @@ def test_Corrector_Nones(cache_dir):
         iterations=10,
     )
     corrector.compute_correction()
+    corrector.old_correct(np.array([1, 2, 3]))
     assert corrector.correction is not None
+
+
+def test_Corrector_Bad_Config(cache_dir):
+    est = mienc.estimators.ChatterjeEstimator(0)
+    with pytest.warns(RuntimeWarning, match="Unable"):
+        corrector = mienc.Corrector(
+            samples=30,
+            estimator=est,
+            duration=30,
+            workers=1,
+            steps=5,
+            ensure_monotonic=False,
+            config="qwertyuiop",
+            cache_dir=None,
+            verbose=False,
+            iterations=10,
+        )
 
 
 def test_NLE_Chatterjee_dist_randomOut():
