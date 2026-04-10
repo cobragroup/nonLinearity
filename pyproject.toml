@@ -23,9 +23,9 @@ classifiers = [
 ]
 license-files = ["LICENSE"]
 dependencies = [
-    "numpy",
+    "numpy>=2.2",
     "scipy",
-    "matplotlib",
+    "matplotlib>=3.10",
     "tqdm",
 ]
 
@@ -61,7 +61,7 @@ rep = [
     "xlrd",
     "h5py",
     "notebook",
-    "pandas",
+    "pandas>=2.0",
     "seaborn",
     "allensdk",
     "nilearn",

@@ -14,8 +14,6 @@ import tempfile, atexit, shutil
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy.io as sio
-from sklearn.base import estimator_html_repr
-from sklearn.cluster import estimate_bandwidth
 from tqdm import tqdm
 
 from .corrector import Corrector
